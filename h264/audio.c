@@ -144,10 +144,12 @@ int32_t audioplay_play_buffer(COMPONENT_T *audio_render, uint8_t *buffer, uint32
 	}
 	else {
 		OMX_BUFFERHEADERTYPE *hdr = ilclient_get_input_buffer(audio_render, 100, 0);
-		int32_t ret = -1;
 
-		if (hdr == NULL)
+		if (hdr == NULL) {
+
+		int32_t ret = -1;
 			return ret;
+			}
 
 		OMX_ERRORTYPE error;
 
@@ -212,7 +214,6 @@ reopen:
 			goto reopen;
 		}
 	}
-	retry_times = 0;
 
 	rate = 48000;
 	buffer_size = rate / 5;

@@ -104,8 +104,14 @@ int sendtodecoder(COMPONENT_T *video_decode, COMPONENT_T *video_scheduler, COMPO
 			}
 
 			rtppacket* nexttemp = (*beg)->next;
-			free((*beg)->buf);
-			free((*beg));
+			if ((*beg)!=NULL) {
+			    if ((*beg)->buf!=NULL) {
+			        free((*beg)->buf);
+			        (*beg)->buf=NULL;
+			    }
+			    free((*beg));
+			    *beg = NULL;
+			}
 			(*beg) = nexttemp;
 
 			if ((*beg) == scan)
@@ -173,7 +179,7 @@ int sendtodecoder(COMPONENT_T *video_decode, COMPONENT_T *video_scheduler, COMPO
 		if (OMX_EmptyThisBuffer(ILC_GET_HANDLE(video_decode), buf) != OMX_ErrorNone)
 			return -6;
 	}
-
+    return 0;
 }
 
 
@@ -184,7 +190,8 @@ static void* addnullpacket(rtppacket* beg)
 	struct sockaddr_in addr1, addr2;
 	struct sockaddr_in sourceaddr;
 	socklen_t addrlen = sizeof(sourceaddr);
-	int fd, fd2;
+	int fd = 0;
+	int fd2 = 0;
 
 
 
@@ -234,16 +241,22 @@ static void* addnullpacket(rtppacket* beg)
 
 	while (1)
 	{
-		beg->buf = malloc(2048 * sizeof(unsigned char));
-		beg->recvlen = recvfrom(fd, beg->buf, 2048, 0, (struct sockaddr *)&sourceaddr, &addrlen);
-		if (beg->recvlen <= 0)
-		{
-			free(beg->buf);
-			free(beg);
+		if (beg!=NULL) {
+		    beg->buf = malloc(2048 * sizeof(unsigned char));
+		    beg->recvlen = recvfrom(fd, beg->buf, 2048, 0, (struct sockaddr *)&sourceaddr, &addrlen);
+		    if (beg->recvlen <= 0)
+		    {
+			    if (beg->buf != NULL) {
+			        free(beg->buf);
+			        beg->buf=NULL;
+			    }
+			    //free(beg);
+			    //beg=NULL;
 			continue;
+		    }
+		    beg->seqnum = (beg->buf[2] << 8) + beg->buf[3];
+		    beg->next = NULL;
 		}
-		beg->seqnum = (beg->buf[2] << 8) + beg->buf[3];
-		beg->next = NULL;
 		break;
 
 	}
@@ -253,7 +266,10 @@ static void* addnullpacket(rtppacket* beg)
 
 
 	int numofpacket = 1;
-	int osn = 0xFFFF & (beg->seqnum);
+	int osn = 0;
+	if (beg!=NULL) {
+	    osn = 0xFFFF & (beg->seqnum);
+	}
 	int hold = 0;
 	int sentseqnum = -1;
 
@@ -264,8 +280,12 @@ static void* addnullpacket(rtppacket* beg)
 		p1->recvlen = recvfrom(fd, p1->buf, 2048, 0, (struct sockaddr *)&sourceaddr, &addrlen);
 		if (p1->recvlen == 0)
 		{
-			free(p1->buf);
-			free(p1);
+			    if (p1->buf!=NULL) {
+			        free(p1->buf);
+			        p1->buf = NULL;
+			    }
+			    free(p1);
+			    p1 = NULL;
 			continue;
 		}else if(p1->recvlen < 0)
 		{
@@ -281,8 +301,12 @@ static void* addnullpacket(rtppacket* beg)
 		if (largers(sentseqnum, p1->seqnum) && sentseqnum > 0)
 		{
 			printf("drop:%d\n", p1->seqnum);
-			free(p1->buf);
-			free(p1);
+			    if (p1->buf!=NULL) {
+			        free(p1->buf);
+			        p1->buf = NULL;
+			    }
+			    free(p1);
+			    p1 = NULL;
 			continue;
 		}
 
@@ -314,59 +338,68 @@ static void* addnullpacket(rtppacket* beg)
 
 			if (currentp == NULL)//end
 			{
-				prevp->next = p1;
+				if (prevp!=NULL) {
+				    prevp->next = p1;
+				}
 			}
 
 		}
 
 		numofpacket++;
 
-		if (head->seqnum == osn)
-		{
+		if (head!=NULL) {
+		    if (head->seqnum == osn)
+		    {
 			hold = 0;
 
-		}
-		else if (numofpacket > 14)
-		{
+		    }
+		    else if (numofpacket > 14)
+		    {
 			hold = 0;
 			printf("start:%d, end:%d\n", osn, head->seqnum);
 
 			osn = head->seqnum;
 			sentseqnum = osn;
 
-		}
-		else if (idrsockport > 0 && (numofpacket == 12))
-		{
+		    }
+		    else if (idrsockport > 0 && (numofpacket == 12))
+		    {
 			const char topython[] = "send idr";
 			if (sendto(fd2, topython, sizeof(topython), 0, (struct sockaddr *)&addr2, addrlen) < 0)
 				perror("sendto error");
 			printf("idr:%d\n", numofpacket);
+		    }
 		}
 
 
+		if (head!=NULL) {
 		if (numofpacket > 0 && !hold && osn == head->seqnum && oldhead != NULL)
 		{
 			oldhead->next = head;
+		}
 		}
 
 
 
 		while (numofpacket > 0 && !hold)
 		{
-			if (osn != head->seqnum)
-			{
+			if (head!=NULL) {
+			    if (osn != head->seqnum)
+		 	    {
 				hold = 1;
 				break;
+			    }
+
+			    sentseqnum = osn;
+
+			    osn = 0xFFFF & (osn + 1);
+			    oldhead = head;
+			    head = head->next;
+			    numofpacket--;
+			    atomic_fetch_add(&numofnode, 1);
+			} else {
+			    break;
 			}
-
-			sentseqnum = osn;
-
-			osn = 0xFFFF & (osn + 1);
-			oldhead = head;
-			head = head->next;
-			numofpacket--;
-			atomic_fetch_add(&numofnode, 1);
-
 		}
 
 	}
@@ -472,7 +505,7 @@ static int video_decode_test(rtppacket* beg)
 		ilclient_enable_port_buffers(video_decode, 130, NULL, NULL, NULL) == 0
 		)
 	{
-		OMX_BUFFERHEADERTYPE *buf;
+		OMX_BUFFERHEADERTYPE *buf = NULL;
 		int port_settings_changed = 0;
 
 		ilclient_change_component_state(video_decode, OMX_StateExecuting);
@@ -481,8 +514,6 @@ static int video_decode_test(rtppacket* beg)
 		int oldcc = 0;
 		int peserror = 1;
 		int first = 1;
-		int peslen = -100, actuallen = 0;
-		unsigned char* oldlen = NULL;
 
 		rtppacket*scan = beg;
 		while (1)
@@ -506,7 +537,6 @@ static int video_decode_test(rtppacket* beg)
 				unsigned char sync = buffer[0];
 				if (sync == 0x47)
 				{
-					int startindicator = buffer[1] & 0x40;
 					short pid = ((0x1F & buffer[1]) << 8) + buffer[2];
 
 					if (pid == 0x1011)
@@ -540,8 +570,12 @@ static int video_decode_test(rtppacket* beg)
 									while (beg != scan)
 									{
 										rtppacket* nexttemp = beg->next;
-										free(beg->buf);
-										free(beg);
+										    if (beg->buf!=NULL) {
+										        free(beg->buf);
+										        beg->buf=NULL;
+										    }
+										    free(beg);
+										    beg=NULL;
 										beg = nexttemp;
 									}
 									first = 1;
@@ -585,8 +619,10 @@ static int video_decode_test(rtppacket* beg)
 			scan = scan->next;
 		}
 
-		buf->nFilledLen = 0;
-		buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;
+		if (buf!=NULL) {
+		    buf->nFilledLen = 0;
+		    buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;
+		}
 
 		if (OMX_EmptyThisBuffer(ILC_GET_HANDLE(video_decode), buf) != OMX_ErrorNone)
 			status = -20;
