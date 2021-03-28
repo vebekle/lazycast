@@ -42,7 +42,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ilclient.h"
 #include "audio.h"
 
-#define here() printf("line:%d\n",__LINE__);
+#include "debug_print.h"
+#define DBG_PRINT_ENABLED 0
+
+int debug_print_callback(char* debugMessage, unsigned int length)
+{
+    printf("%s", debugMessage);
+    return 0;
+}
 
 typedef struct srtppacket
 {
@@ -300,7 +307,7 @@ static void* addnullpacket(rtppacket* beg)
 
 		if (largers(sentseqnum, p1->seqnum) && sentseqnum > 0)
 		{
-			printf("drop:%d\n", p1->seqnum);
+			DBG_PRINTF_WARNING("drop:%d\n", p1->seqnum);
 			    if (p1->buf!=NULL) {
 			        free(p1->buf);
 			        p1->buf = NULL;
@@ -356,7 +363,7 @@ static void* addnullpacket(rtppacket* beg)
 		    else if (numofpacket > 14)
 		    {
 			hold = 0;
-			printf("start:%d, end:%d\n", osn, head->seqnum);
+			DBG_PRINTF_TRACE("start:%d, end:%d\n", osn, head->seqnum);
 
 			osn = head->seqnum;
 			sentseqnum = osn;
@@ -367,7 +374,7 @@ static void* addnullpacket(rtppacket* beg)
 			const char topython[] = "send idr";
 			if (sendto(fd2, topython, sizeof(topython), 0, (struct sockaddr *)&addr2, addrlen) < 0)
 				perror("sendto error");
-			printf("idr:%d\n", numofpacket);
+			DBG_PRINTF_TRACE("idr:%d\n", numofpacket);
 		    }
 		}
 
@@ -459,7 +466,7 @@ static int video_decode_test(rtppacket* beg)
 	list[3] = video_scheduler;
 
 	if (audioplay_create(client, &audio_render, list, 4) != 0)
-		printf("create error\n");
+		DBG_PRINTF_ERROR("create error\n");
 
 	if (audiodest == 0)
 		audioplay_set_dest(audio_render, "hdmi");
@@ -545,7 +552,7 @@ static int video_decode_test(rtppacket* beg)
 						int cc = buffer[3] & 0x0F;
 						if (cc != oldcc)
 						{
-							printf("oldcc %d cc %d\n", oldcc, cc);
+							DBG_PRINTF_TRACE("oldcc %d cc %d\n", oldcc, cc);
 							oldcc = cc;
 							peserror = 1;
 						}
@@ -599,7 +606,7 @@ static int video_decode_test(rtppacket* beg)
 							
 
 							if (audioplay_play_buffer(audio_render, buffer + shift, 188 - shift) < 0)
-								printf("sound error\n");
+								DBG_PRINTF_ERROR("sound error\n");
 
 
 
@@ -659,17 +666,17 @@ int main(int argc, char **argv)
 	if (argc > 1)
 	{
 		idrsockport = atoi(argv[1]);
-		printf("idrport:%d\n", idrsockport);
+		DBG_PRINTF_DEBUG("idrport:%d\n", idrsockport);
 	}
 	if (argc > 2)
 	{
 		audiodest = atoi(argv[2]);
-		printf("audiodest:%d\n", audiodest);
+		DBG_PRINTF_DEBUG("audiodest:%d\n", audiodest);
 	}
 	if (argc > 3)
 	{
 		sinkip = argv[3];
-		printf("sinkip:%s\n", sinkip);
+		DBG_PRINTF_DEBUG("sinkip:%s\n", sinkip);
 	}
 
 	atomic_store(&numofnode, 0);

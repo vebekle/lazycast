@@ -25,6 +25,9 @@ all: $(BIN) $(LIB)
 check:
 	clang-tidy-8 h264.c -- $(INCLUDES) $(CFLAGS)
 	clang-tidy-8 audio.c -- $(INCLUDES) $(CFLAGS)
+	cppcheck --enable=all $(INCLUDES) h264.c
+	cppcheck --enable=all $(INCLUDES) audio.c
+
 
 clean:
 	for i in $(OBJS); do (if test -e "$$i"; then ( rm $$i ); fi ); done

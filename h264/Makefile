@@ -1,4 +1,4 @@
-OBJS=h264.o audio.o
+OBJS=h264.o audio.o debug_print.o
 BIN=./h264.bin
 DMX_INC =  -I/opt/vc/include/ -I /opt/vc/include/interface/vmcs_host/ -I/opt/vc/include/interface/vcos/pthreads -I/opt/vc/include/interface/vmcs_host/linux  -I/opt/vc/include/interface/vcos/
 EGL_INC = 
