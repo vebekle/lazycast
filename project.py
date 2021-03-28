@@ -68,6 +68,7 @@ while True:
 	(conn, addr) = sock.accept()
 	print('Connected by', addr)
 	sourceip = addr[0]
+        os.system("sudo service kodi stop")
 
 	
 	while True:
@@ -107,6 +108,7 @@ while True:
 		# conn.send(data)
 
 	conn.close()
+        os.system("sudo service kodi start")
 
 sock.close()
 
