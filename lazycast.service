@@ -2,7 +2,7 @@
 Description=lazycast server
 
 [Service]
-ExecStart=/home/pi/lazycast/all.sh
+ExecStart=/home/pi/lazycast/mice.py
 WorkingDirectory=/home/pi/lazycast
 
 [Install]
