@@ -264,7 +264,7 @@ def launchplayer(player_select):
 		sinkip = sock.getsockname()[0]
 		print sinkip
 		print('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
-		os.system('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
+		os.system('sudo nice --18 ./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' 2>&1 | tee -a h264.log &')
 	elif player_select == 3:
 		#if 'MSMiracastSource' in m2data:
 		#	os.system('omxplayer rtp://0.0.0.0:1028 -n -1 --live &') # For Windows 10 when no sound is playing
