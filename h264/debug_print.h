@@ -4,8 +4,8 @@
  * of the MIT license.  See the LICENSE file for details.
  */
 
-#ifndef _DEBUG_PRINT_H_
-#define _DEBUG_PRINT_H_
+#ifndef DEBUG_PRINT_H_
+#define DEBUG_PRINT_H_
 
 #include <ansi_colors.h>
 
@@ -59,10 +59,10 @@ extern int debug_print_callback(char *debugMessage, unsigned int length);
 /////////////////////////////////////////
 
 #if DBG_PRINT_ENABLED
-#define DBG_PRINTF_DEBUG(fmt, ...) debug_printf_ln(ANSI_COLOR_GREEN, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
-#define DBG_PRINTF_TRACE(fmt, ...) debug_printf_ln(ANSI_COLOR_WHITE, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
-#define DBG_PRINTF_WARNING(fmt, ...) debug_printf_ln(ANSI_COLOR_YELLOW, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
-#define DBG_PRINTF_ERROR(fmt, ...) debug_printf_ln(ANSI_COLOR_RED, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+#define DBG_PRINTF_DEBUG(fmt, ...) (void)debug_printf_ln(ANSI_COLOR_GREEN, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+#define DBG_PRINTF_TRACE(fmt, ...) (void)debug_printf_ln(ANSI_COLOR_WHITE, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+#define DBG_PRINTF_WARNING(fmt, ...) (void)debug_printf_ln(ANSI_COLOR_YELLOW, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+#define DBG_PRINTF_ERROR(fmt, ...) (void)debug_printf_ln(ANSI_COLOR_RED, __FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 #else
 #define DBG_PRINTF_DEBUG(fmt, ...)
 #define DBG_PRINTF_TRACE(fmt, ...)

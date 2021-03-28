@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include <pthread.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -42,14 +43,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ilclient.h"
 #include "audio.h"
 
-#include "debug_print.h"
 #define DBG_PRINT_ENABLED 0
-
-int debug_print_callback (char* debugMessage, unsigned int length)
-{
-    printf ("%s", debugMessage);
-    return 0;
-}
+#include "debug_print.h"
 
 typedef struct srtppacket {
     unsigned char* buf;
@@ -60,48 +55,50 @@ typedef struct srtppacket {
 
 atomic_int numofnode;
 
-
-int largers (int a, int b)
+bool largers (int a, int b)
 {
+    bool ret = false;
     if (abs (a - b) < 32768) {
-        return a > b;
-    } else if (a - b <= -32768) {
-        return 1;
+        ret = (a > b);
+    } else if ((a - b) <= -32768) {
+        ret = true;
     } else {
-        return 0;
+        /* empty */
     }
+    return ret;
 }
 
 int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMPONENT_T* video_render, TUNNEL_T* tunnel,
-                   OMX_BUFFERHEADERTYPE* buf, rtppacket** beg, rtppacket* scan,
+                   OMX_BUFFERHEADERTYPE* inbuf, rtppacket** beg, rtppacket* scan,
                    int* port_settings_changed, int* first)
 {
-    int loop = 1;
+    bool loop = true;
     int theveryfirst = 1;
+    (void)inbuf;
     while (loop) {
-        buf = ilclient_get_input_buffer (video_decode, 130, 1);
+        OMX_BUFFERHEADERTYPE* buf = ilclient_get_input_buffer (video_decode, 130, 1);
         if (buf == NULL) {
             return 0;
         }
         unsigned char* dest = buf->pBuffer;
         int data_len = 0;
-        while (1) {
+        while (true) {
             int numofts = ((*beg)->recvlen - 12) / 188;
             for (int i = 0; i < numofts; i++) {
-                unsigned char* buffer = (*beg)->buf + 12 + i * 188;
-                short pid = ((0x1F & buffer[1]) << 8) + buffer[2];
+                unsigned char* buffer = (*beg)->buf + 12u + (unsigned char)i * 188u;
+                short pid = ((0x1Fu & buffer[1]) << 8u) + buffer[2];
                 if (pid != 0x1011) {
                     continue;
                 }
-                int ad = 3 & (buffer[3] >> 4);
-                if (ad & 1) {
+                int ad = 3u & (buffer[3] >> 4u);
+                if ((ad & 1)==1) {
                     int adlen = buffer[4];
-                    int shift = (ad == 1) ? 4 : adlen + 5;
-                    if (theveryfirst) {
+                    int shift = (ad == 1) ? 4 : (adlen + 5);
+                    if (theveryfirst!=0) {
                         shift += 14;
                         theveryfirst = 0;
                     }
-                    memcpy (dest + data_len, buffer + shift, 188 - shift);
+                    (void)memcpy (dest + data_len, buffer + shift, 188 - shift);
                     data_len += 188 - shift;
                 }
             }
@@ -116,40 +113,43 @@ int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMP
             }
             (*beg) = nexttemp;
             if ((*beg) == scan) {
-                loop = 0;
+                loop = false;
                 break;
-            } else if (buf->nAllocLen - data_len < 1500) {
+            } else if ((buf->nAllocLen - data_len) < 1500) {
                 break;
-            }
+            } else {
+		/* empty */
+	    }
         }
-        if ((*port_settings_changed) == 0 &&
-                ((data_len > 0 && ilclient_remove_event (video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1) == 0) ||
-                 (data_len == 0 && ilclient_wait_for_event (video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1,
+        if (((*port_settings_changed) == 0) &&
+                (((data_len > 0) && ilclient_remove_event (video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1) == 0) ||
+                 ((data_len == 0) && ilclient_wait_for_event (video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1,
                          ILCLIENT_EVENT_ERROR | ILCLIENT_PARAMETER_CHANGED, 10000) == 0))) {
             *port_settings_changed = 1;
             if (ilclient_setup_tunnel (tunnel, 0, 0) != 0) {
                 return -7;
-            }
-            ilclient_change_component_state (video_scheduler, OMX_StateExecuting);
-            // now setup tunnel to video_render
-            if (ilclient_setup_tunnel (tunnel + 1, 0, 1000) != 0) {
-                return -12;
-            }
-            ilclient_change_component_state (video_render, OMX_StateExecuting);
+            } else {
+                ilclient_change_component_state (video_scheduler, OMX_StateExecuting);
+                // now setup tunnel to video_render
+                if (ilclient_setup_tunnel (tunnel + 1, 0, 1000) != 0) {
+                    return -12;
+                } else {
+                    ilclient_change_component_state (video_render, OMX_StateExecuting);
+		}
+	    }
         }
         const unsigned char sidedata[14] = { 0xea, 0x00, 0x00, 0x00,
                                              0x01, 0xce, 0x8c, 0x4d,
                                              0x9d, 0x10, 0x8e, 0x25, 0xe9, 0xfe
                                            };
         if (!loop) {
-            memcpy (dest + data_len, sidedata, 14);
+            (void)memcpy (dest + data_len, sidedata, 14);
             data_len += 14;
             buf->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
         }
         buf->nFilledLen = data_len;
-        //printf("len:%d\n", data_len);
         buf->nOffset = 0;
-        if (*first) {
+        if ((*first)!=0) {
             buf->nFlags |= OMX_BUFFERFLAG_STARTTIME;
             *first = 0;
         } else {
@@ -167,16 +167,17 @@ int idrsockport = -1;
 char* sinkip = "192.168.173.1";
 static void* addnullpacket (rtppacket* beg)
 {
-    struct sockaddr_in addr1, addr2;
+    struct sockaddr_in addr1;
+    struct sockaddr_in addr2;
     struct sockaddr_in sourceaddr;
     socklen_t addrlen = sizeof (sourceaddr);
-    int fd = 0;
     int fd2 = 0;
-    if ((fd = socket (AF_INET, SOCK_DGRAM, 0)) < 0) {
+    int fd = socket (AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
         perror ("cannot create socket\n");
         return 0;
     }
-    memset ((char*)&addr1, 0, sizeof (addr1));
+    (void)memset ((char*)&addr1, 0, sizeof (addr1));
     addr1.sin_family = AF_INET;
     addr1.sin_addr.s_addr = inet_addr (sinkip);
     addr1.sin_port = htons (1028);
@@ -191,18 +192,19 @@ static void* addnullpacket (rtppacket* beg)
         return 0;
     }
     if (idrsockport > 0) {
-        if ((fd2 = socket (AF_INET, SOCK_DGRAM, 0)) < 0) {
+	fd2 = socket(AF_INET, SOCK_DGRAM, 0);
+        if (fd2 < 0) {
             perror ("cannot create socket\n");
             return 0;
         }
-        memset ((char*)&addr2, 0, sizeof (addr2));
+        (void)memset ((char*)&addr2, 0, sizeof (addr2));
         addr2.sin_family = AF_INET;
         addr2.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
         addr2.sin_port = htons (idrsockport);
     }
-    while (1) {
+    while (true) {
         if (beg != NULL) {
-            beg->buf = malloc (2048 * sizeof (unsigned char));
+            beg->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
             beg->recvlen = recvfrom (fd, beg->buf, 2048, 0, (struct sockaddr*)&sourceaddr, &addrlen);
             if (beg->recvlen <= 0) {
                 if (beg->buf != NULL) {
@@ -225,11 +227,11 @@ static void* addnullpacket (rtppacket* beg)
     if (beg != NULL) {
         osn = 0xFFFF & (beg->seqnum);
     }
-    int hold = 0;
+    bool hold = 0;
     int sentseqnum = -1;
     while (1) {
-        rtppacket* p1 = malloc (sizeof (rtppacket));
-        p1->buf = malloc (2048 * sizeof (unsigned char));
+        rtppacket* p1 = (rtppacket*)malloc (sizeof (rtppacket));
+        p1->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
         p1->recvlen = recvfrom (fd, p1->buf, 2048, 0, (struct sockaddr*)&sourceaddr, &addrlen);
         if (p1->recvlen == 0) {
             if (p1->buf != NULL) {
@@ -245,10 +247,12 @@ static void* addnullpacket (rtppacket* beg)
                 perror ("recv timeout");
             }
             exit (1);
-        }
+        } else {
+	  /* empty */
+	}
         p1->seqnum = (p1->buf[2] << 8) + p1->buf[3];
         p1->next = NULL;
-        if (largers (sentseqnum, p1->seqnum) && sentseqnum > 0) {
+        if ((largers (sentseqnum, p1->seqnum)) && (sentseqnum > 0)) {
             DBG_PRINTF_WARNING ("drop:%d\n", p1->seqnum);
             if (p1->buf != NULL) {
                 free (p1->buf);
@@ -285,29 +289,31 @@ static void* addnullpacket (rtppacket* beg)
         numofpacket++;
         if (head != NULL) {
             if (head->seqnum == osn) {
-                hold = 0;
+                hold = false;
             } else if (numofpacket > 14) {
-                hold = 0;
+                hold = false;
                 DBG_PRINTF_TRACE ("start:%d, end:%d\n", osn, head->seqnum);
                 osn = head->seqnum;
                 sentseqnum = osn;
-            } else if (idrsockport > 0 && (numofpacket == 12)) {
+            } else if ((idrsockport > 0) && (numofpacket == 12)) {
                 const char topython[] = "send idr";
                 if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
                     perror ("sendto error");
                 }
                 DBG_PRINTF_TRACE ("idr:%d\n", numofpacket);
-            }
+            } else {
+		/* empty */
+	    }
         }
         if (head != NULL) {
-            if (numofpacket > 0 && !hold && osn == head->seqnum && oldhead != NULL) {
+            if ((numofpacket > 0) && (!hold) && (osn == head->seqnum) && (oldhead != NULL)) {
                 oldhead->next = head;
             }
         }
-        while (numofpacket > 0 && !hold) {
+        while ((numofpacket > 0) && (!hold)) {
             if (head != NULL) {
                 if (osn != head->seqnum) {
-                    hold = 1;
+                    hold = true;
                     break;
                 }
                 sentseqnum = osn;
@@ -322,20 +328,26 @@ static void* addnullpacket (rtppacket* beg)
         }
     }
 }
+
 int audiodest = 0;
 
 static int video_decode_test (rtppacket* beg)
 {
     OMX_VIDEO_PARAM_PORTFORMATTYPE format;
     OMX_TIME_CONFIG_CLOCKSTATETYPE cstate;
-    COMPONENT_T* video_decode = NULL, *video_scheduler = NULL, *video_render = NULL, *clock = NULL, *audio_render = NULL;
+    COMPONENT_T* video_decode = NULL;
+    COMPONENT_T* video_scheduler = NULL;
+    COMPONENT_T* video_render = NULL;
+    COMPONENT_T* clock = NULL;
+    COMPONENT_T* audio_render = NULL;
     COMPONENT_T* list[5];
     TUNNEL_T tunnel[4];
     ILCLIENT_T* client;
     int status = 0;
-    memset (list, 0, sizeof (list));
-    memset (tunnel, 0, sizeof (tunnel));
-    if ((client = ilclient_init()) == NULL) {
+    (void)memset (list, 0, sizeof (list));
+    (void)memset (tunnel, 0, sizeof (tunnel));
+    client = ilclient_init();
+    if (client == NULL) {
         return -3;
     }
     if (OMX_Init() != OMX_ErrorNone) {
@@ -348,25 +360,25 @@ static int video_decode_test (rtppacket* beg)
     }
     list[0] = video_decode;
     // create video_render
-    if (status == 0 && ilclient_create_component (client, &video_render, "video_render", ILCLIENT_DISABLE_ALL_PORTS) != 0) {
+    if ((status == 0) && (ilclient_create_component (client, &video_render, "video_render", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
         status = -14;
     }
     list[1] = video_render;
     // create clock
-    if (status == 0 && ilclient_create_component (client, &clock, "clock", ILCLIENT_DISABLE_ALL_PORTS) != 0) {
+    if ((status == 0) && (ilclient_create_component (client, &clock, "clock", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
         status = -14;
     }
     list[2] = clock;
-    memset (&cstate, 0, sizeof (cstate));
+    (void)memset (&cstate, 0, sizeof (cstate));
     cstate.nSize = sizeof (cstate);
     cstate.nVersion.nVersion = OMX_VERSION;
     cstate.eState = OMX_TIME_ClockStateWaitingForStartTime;
     cstate.nWaitMask = 1;
-    if (clock != NULL && OMX_SetParameter (ILC_GET_HANDLE (clock), OMX_IndexConfigTimeClockState, &cstate) != OMX_ErrorNone) {
+    if ((clock != NULL) && (OMX_SetParameter (ILC_GET_HANDLE (clock), OMX_IndexConfigTimeClockState, &cstate) != OMX_ErrorNone)) {
         status = -13;
     }
     // create video_scheduler
-    if (status == 0 && ilclient_create_component (client, &video_scheduler, "video_scheduler", ILCLIENT_DISABLE_ALL_PORTS) != 0) {
+    if ((status == 0) && (ilclient_create_component (client, &video_scheduler, "video_scheduler", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
         status = -14;
     }
     list[3] = video_scheduler;
@@ -374,17 +386,17 @@ static int video_decode_test (rtppacket* beg)
         DBG_PRINTF_ERROR ("create error\n");
     }
     if (audiodest == 0) {
-        audioplay_set_dest (audio_render, "hdmi");
+        (void)audioplay_set_dest (audio_render, "hdmi");
     } else if (audiodest == 1) {
-        audioplay_set_dest (audio_render, "local");
+        (void)audioplay_set_dest (audio_render, "local");
     } else {
-        audioplay_set_dest (audio_render, "alsa");
+        (void)audioplay_set_dest (audio_render, "alsa");
     }
     set_tunnel (tunnel, video_decode, 131, video_scheduler, 10);
     set_tunnel (tunnel + 1, video_scheduler, 11, video_render, 90);
     set_tunnel (tunnel + 2, clock, 80, video_scheduler, 12);
     // setup clock tunnel first
-    if (status == 0 && ilclient_setup_tunnel (tunnel + 2, 0, 0) != 0) {
+    if ((status == 0) && (ilclient_setup_tunnel (tunnel + 2, 0, 0) != 0)) {
         status = -15;
     } else {
         ilclient_change_component_state (clock, OMX_StateExecuting);
@@ -392,7 +404,7 @@ static int video_decode_test (rtppacket* beg)
     if (status == 0) {
         ilclient_change_component_state (video_decode, OMX_StateIdle);
     }
-    memset (&format, 0, sizeof (OMX_VIDEO_PARAM_PORTFORMATTYPE));
+    (void)memset (&format, 0, sizeof (OMX_VIDEO_PARAM_PORTFORMATTYPE));
     format.nSize = sizeof (OMX_VIDEO_PARAM_PORTFORMATTYPE);
     format.nVersion.nVersion = OMX_VERSION;
     format.nPortIndex = 130;
@@ -407,9 +419,9 @@ static int video_decode_test (rtppacket* beg)
     //portParam.nBufferSize = 188;
     //if (OMX_SetParameter(ILC_GET_HANDLE(video_decode), OMX_IndexParamPortDefinition, &portParam) == OMX_ErrorNone)
     //	printf("set error\n");
-    if (status == 0 &&
-            OMX_SetParameter (ILC_GET_HANDLE (video_decode), OMX_IndexParamVideoPortFormat, &format) == OMX_ErrorNone &&
-            ilclient_enable_port_buffers (video_decode, 130, NULL, NULL, NULL) == 0
+    if ((status == 0) &&
+            (OMX_SetParameter (ILC_GET_HANDLE (video_decode), OMX_IndexParamVideoPortFormat, &format) == OMX_ErrorNone) &&
+            (ilclient_enable_port_buffers (video_decode, 130, NULL, NULL, NULL) == 0)
        ) {
         OMX_BUFFERHEADERTYPE* buf = NULL;
         int port_settings_changed = 0;
@@ -430,25 +442,25 @@ static int video_decode_test (rtppacket* beg)
             }*/
             int numofts = (scan->recvlen - 12) / 188;
             for (int i = 0; i < numofts; i++) {
-                unsigned char* buffer = scan->buf + 12 + i * 188;
+                unsigned char* buffer = scan->buf + 12u + (unsigned int)i * 188u;
                 unsigned char sync = buffer[0];
-                if (sync == 0x47) {
-                    short pid = ((0x1F & buffer[1]) << 8) + buffer[2];
+                if (sync == 0x47u) {
+                    short pid = ((0x1Fu & buffer[1]) << 8u) + buffer[2];
                     if (pid == 0x1011) {
-                        int ad = 3 & (buffer[3] >> 4);
-                        int cc = buffer[3] & 0x0F;
+                        int ad = 3u & (buffer[3] >> 4u);
+                        int cc = buffer[3] & 0x0Fu;
                         if (cc != oldcc) {
                             DBG_PRINTF_TRACE ("oldcc %d cc %d\n", oldcc, cc);
                             oldcc = cc;
                             peserror = 1;
                         }
                         oldcc = 0xF & (oldcc + 1);
-                        if (ad & 1) {
+                        if ((ad & 1)!=0) {
                             int adlen = buffer[4];
-                            int shift = (ad == 1) ? 4 : adlen + 5;
-                            if (buffer[shift] == 0 && buffer[shift + 1] == 0 && buffer[shift + 2] == 1) { /////newpesstart
+                            int shift = (ad == 1) ? 4 : (adlen + 5);
+                            if ((buffer[shift] == 0u) && (buffer[shift + 1] == 0u) && (buffer[shift + 2] == 1u)) { /////newpesstart
                                 if (peserror == 0) {
-                                    sendtodecoder (video_decode, video_scheduler, video_render, tunnel,
+                                    (void)sendtodecoder (video_decode, video_scheduler, video_render, tunnel,
                                                    buf, &beg, scan, &port_settings_changed, &first);
                                 } else {
                                     while (beg != scan) {
@@ -467,18 +479,20 @@ static int video_decode_test (rtppacket* beg)
                             }
                         }
                     } else if (pid == 0x1100) {
-                        int ad = 3 & (buffer[3] >> 4);
-                        if (ad & 1) {
+                        int ad = (3u & (buffer[3] >> 4u));
+                        if ((ad & 1)!=0) {
                             int adlen = buffer[4];
-                            int shift = (ad == 1) ? 4 : adlen + 5;
-                            if (buffer[shift] == 0 && buffer[shift + 1] == 0 && buffer[shift + 2] == 1) { /////newpesstart
+                            int shift = (ad == 1) ? 4 : (adlen + 5);
+                            if ((buffer[shift] == 0u) && (buffer[shift + 1] == 0u) && (buffer[shift + 2] == 1u)) { /////newpesstart
                                 shift += 20;
                             }
                             if (audioplay_play_buffer (audio_render, buffer + shift, 188 - shift) < 0) {
                                 DBG_PRINTF_ERROR ("sound error\n");
                             }
                         }
-                    }
+                    } else {
+			/* empty */
+		    }
                 }
             }
             atomic_fetch_sub (&numofnode, 1);
@@ -527,19 +541,19 @@ int main (int argc, char** argv)
     atomic_store (&numofnode, 0);
     pthread_t npthread;
     pthread_t dthread;
-    rtppacket* beg = malloc (sizeof (rtppacket));
+    rtppacket* beg = (rtppacket*) malloc (sizeof (rtppacket));
     bcm_host_init();
     if (pthread_create (&npthread, NULL, addnullpacket, beg) != 0) {
-        exit (1);
+        return 1;
     }
     if (pthread_create (&dthread, NULL, video_decode_test, beg) != 0) {
-        exit (1);
+        return 1;
     }
     if (pthread_join (npthread, NULL) != 0) {
-        exit (1);
+        return 1;
     }
     if (pthread_join (dthread, NULL) != 0) {
-        exit (1);
+        return 1;
     }
     return 0;
 }

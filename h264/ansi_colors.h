@@ -6,8 +6,8 @@
  * of the MIT license.  See the LICENSE file for details.
  */
 
-#ifndef _ANSI_COLORS_H
-#define _ANSI_COLORS_H
+#ifndef ANSI_COLORS_H
+#define ANSI_COLORS_H
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
