@@ -27,7 +27,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Audio output demo using OpenMAX IL though the ilcient helper library
 
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -118,6 +117,7 @@ int32_t audioplay_delete (COMPONENT_T* audio_render)
 
 int32_t audioplay_play_buffer (COMPONENT_T* audio_render, uint8_t* buffer, uint32_t length)
 {
+    int32_t ret = 0;
     if (is_alsa) {
         int pcmreturn = snd_pcm_writei (pcm_dev, buffer, length >> 2);
         while ( pcmreturn < 0) {
@@ -128,17 +128,17 @@ int32_t audioplay_play_buffer (COMPONENT_T* audio_render, uint8_t* buffer, uint3
     } else {
         OMX_BUFFERHEADERTYPE* hdr = ilclient_get_input_buffer (audio_render, 100, 0);
         if (hdr == NULL) {
-            int32_t ret = -1;
-            return ret;
-        }
-        OMX_ERRORTYPE error;
-        hdr->nOffset = 0;
-        (void)memcpy (hdr->pBuffer, buffer, length);
-        hdr->nFilledLen = length;
-        error = OMX_EmptyThisBuffer (ILC_GET_HANDLE (audio_render), hdr);
-        assert (error == OMX_ErrorNone);
+            ret = -1;
+        } else {
+            OMX_ERRORTYPE error;
+            hdr->nOffset = 0;
+            (void)memcpy (hdr->pBuffer, buffer, length);
+             hdr->nFilledLen = length;
+            error = OMX_EmptyThisBuffer (ILC_GET_HANDLE (audio_render), hdr);
+            assert (error == OMX_ErrorNone);
+	}
     }
-    return 0;
+    return ret;
 }
 
 int32_t audioplay_set_dest (COMPONENT_T* audio_render, const char* name)
@@ -167,28 +167,25 @@ int32_t audioplay_set_dest (COMPONENT_T* audio_render, const char* name)
 
 static uint32_t audioplay_alsapcm_init (void)
 {
-    int err;
-    int retry_times;
-    snd_pcm_hw_params_t* hwp;
-    retry_times = 0;
-reopen:
-    DBG_PRINTF_DEBUG ("alsa pcm init ...\n");
-    err = snd_pcm_open (&pcm_dev, "default", SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK);
-    if (err < 0) {
-        if (++retry_times > 2) {
-            goto alsa_error;
-        } else {
-            usleep (300);
-            goto reopen;
-        }
-    }
+    int err = 1;
     unsigned int rate = 48000;
     snd_pcm_uframes_t buffer_size = rate / 5u;
     snd_pcm_uframes_t period_size = buffer_size / 4u;
     snd_pcm_uframes_t period_size_max = buffer_size / 3u;
-    snd_pcm_hw_params_alloca (&hwp);
-    snd_pcm_hw_params_any (pcm_dev, hwp);
-    err = snd_pcm_hw_params_set_channels (pcm_dev, hwp, 2);
+    snd_pcm_hw_params_t* hwp;
+
+    for(int retry_times=0;(retry_times<3) && (err!=0);retry_times++) {
+       DBG_PRINTF_DEBUG ("alsa pcm init ...\n");
+       err = snd_pcm_open (&pcm_dev, "default", SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK);
+       if (err != 0) {
+           usleep (300);
+        }
+    }
+    if (err==0) {
+        snd_pcm_hw_params_alloca (&hwp);
+        snd_pcm_hw_params_any (pcm_dev, hwp);
+        err = snd_pcm_hw_params_set_channels (pcm_dev, hwp, 2);
+    }
     if (err==0) {
         err = snd_pcm_hw_params_set_access (pcm_dev, hwp, SND_PCM_ACCESS_RW_INTERLEAVED);
     }
@@ -226,14 +223,14 @@ reopen:
         snd_pcm_hw_params_get_periods (hwp, &rate, &dir);
         DBG_PRINTF_DEBUG ("periods per buffer = %d frames\n", rate);
         DBG_PRINTF_DEBUG ("alsa init success\n");
-        return 0;
+    } else {
+        if (pcm_dev!=NULL) {
+            snd_pcm_close (pcm_dev);
+        }
+        DBG_PRINTF_ERROR ("alsa init failed\n");
+	err = 1;
     }
-alsa_error:
-    if (pcm_dev!=NULL) {
-        snd_pcm_close (pcm_dev);
-    }
-    DBG_PRINTF_ERROR ("alsa init failed\n");
-    return 1;
+    return err;
 }
 
 uint32_t audioplay_get_latency (COMPONENT_T* audio_render)
