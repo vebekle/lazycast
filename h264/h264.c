@@ -162,16 +162,12 @@ int idrsockport = -1;
 char* sinkip = "192.168.173.1";
 static void* addnullpacket (rtppacket* beg)
 {
-    struct sockaddr_in addr1;
-    struct sockaddr_in addr2;
-    struct sockaddr_in sourceaddr;
-    socklen_t addrlen = sizeof (sourceaddr);
-    int fd2 = 0;
     int fd = socket (AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
         perror ("cannot create socket\n");
         return 0;
     }
+    struct sockaddr_in addr1;
     (void)memset ((char*)&addr1, 0, sizeof (addr1));
     addr1.sin_family = AF_INET;
     addr1.sin_addr.s_addr = inet_addr (sinkip);
@@ -186,6 +182,8 @@ static void* addnullpacket (rtppacket* beg)
         perror ("bind failed");
         return 0;
     }
+    struct sockaddr_in addr2;
+    int fd2 = 0;
     if (idrsockport > 0) {
         fd2 = socket (AF_INET, SOCK_DGRAM, 0);
         if (fd2 < 0) {
@@ -197,6 +195,8 @@ static void* addnullpacket (rtppacket* beg)
         addr2.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
         addr2.sin_port = htons (idrsockport);
     }
+    struct sockaddr_in sourceaddr;
+    socklen_t addrlen = sizeof (sourceaddr);
     while (true) {
         if (beg != NULL) {
             beg->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
@@ -325,10 +325,6 @@ int audiodest = 0;
 static int video_decode_test (rtppacket* beg)
 {
     int status = 0;
-    COMPONENT_T* list[5];
-    (void)memset (list, 0, sizeof (list));
-    TUNNEL_T tunnel[4];
-    (void)memset (tunnel, 0, sizeof (tunnel));
     ILCLIENT_T* client = ilclient_init();
     if (client == NULL) {
         return -3;
@@ -342,6 +338,7 @@ static int video_decode_test (rtppacket* beg)
     if (ilclient_create_component (client, &video_decode, "video_decode", ILCLIENT_DISABLE_ALL_PORTS | ILCLIENT_ENABLE_INPUT_BUFFERS) != 0) {
         status = -14;
     }
+    COMPONENT_T* list[5] = {0};
     list[0] = video_decode;
     // create video_render
     COMPONENT_T* video_render = NULL;
@@ -380,6 +377,8 @@ static int video_decode_test (rtppacket* beg)
     } else {
         (void)audioplay_set_dest (audio_render, "alsa");
     }
+
+    TUNNEL_T tunnel[4] = {0};
     set_tunnel (tunnel, video_decode, 131, video_scheduler, 10);
     set_tunnel (tunnel + 1, video_scheduler, 11, video_render, 90);
     set_tunnel (tunnel + 2, clock, 80, video_scheduler, 12);
