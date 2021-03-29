@@ -324,20 +324,12 @@ int audiodest = 0;
 
 static int video_decode_test (rtppacket* beg)
 {
-    OMX_VIDEO_PARAM_PORTFORMATTYPE format;
-    OMX_TIME_CONFIG_CLOCKSTATETYPE cstate;
-    COMPONENT_T* video_decode = NULL;
-    COMPONENT_T* video_scheduler = NULL;
-    COMPONENT_T* video_render = NULL;
-    COMPONENT_T* clock = NULL;
-    COMPONENT_T* audio_render = NULL;
-    COMPONENT_T* list[5];
-    TUNNEL_T tunnel[4];
-    ILCLIENT_T* client;
     int status = 0;
+    COMPONENT_T* list[5];
     (void)memset (list, 0, sizeof (list));
+    TUNNEL_T tunnel[4];
     (void)memset (tunnel, 0, sizeof (tunnel));
-    client = ilclient_init();
+    ILCLIENT_T* client = ilclient_init();
     if (client == NULL) {
         return -3;
     }
@@ -346,21 +338,24 @@ static int video_decode_test (rtppacket* beg)
         return -4;
     }
     // create video_decode
+    COMPONENT_T* video_decode = NULL;
     if (ilclient_create_component (client, &video_decode, "video_decode", ILCLIENT_DISABLE_ALL_PORTS | ILCLIENT_ENABLE_INPUT_BUFFERS) != 0) {
         status = -14;
     }
     list[0] = video_decode;
     // create video_render
+    COMPONENT_T* video_render = NULL;
     if ((status == 0) && (ilclient_create_component (client, &video_render, "video_render", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
         status = -14;
     }
     list[1] = video_render;
     // create clock
+    COMPONENT_T* clock = NULL;
     if ((status == 0) && (ilclient_create_component (client, &clock, "clock", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
         status = -14;
     }
     list[2] = clock;
-    (void)memset (&cstate, 0, sizeof (cstate));
+    OMX_TIME_CONFIG_CLOCKSTATETYPE cstate = {0};
     cstate.nSize = sizeof (cstate);
     cstate.nVersion.nVersion = OMX_VERSION;
     cstate.eState = OMX_TIME_ClockStateWaitingForStartTime;
@@ -369,10 +364,12 @@ static int video_decode_test (rtppacket* beg)
         status = -13;
     }
     // create video_scheduler
+    COMPONENT_T* video_scheduler = NULL;
     if ((status == 0) && (ilclient_create_component (client, &video_scheduler, "video_scheduler", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
         status = -14;
     }
     list[3] = video_scheduler;
+    COMPONENT_T* audio_render = NULL;
     if (audioplay_create (client, &audio_render, list, 4) != 0) {
         DBG_PRINTF_ERROR ("create error\n");
     }
@@ -395,7 +392,7 @@ static int video_decode_test (rtppacket* beg)
     if (status == 0) {
         ilclient_change_component_state (video_decode, OMX_StateIdle);
     }
-    (void)memset (&format, 0, sizeof (OMX_VIDEO_PARAM_PORTFORMATTYPE));
+    OMX_VIDEO_PARAM_PORTFORMATTYPE format = {0};
     format.nSize = sizeof (OMX_VIDEO_PARAM_PORTFORMATTYPE);
     format.nVersion.nVersion = OMX_VERSION;
     format.nPortIndex = 130;
