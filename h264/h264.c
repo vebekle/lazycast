@@ -55,8 +55,11 @@ typedef struct srtppacket {
 
 atomic_int numofnode;
 int audiodest = 0;
+int idrsockport = -1;
+char* sinkip = "192.168.173.1";
 
-bool largers (int a, int b)
+static bool largers (int a, int b);
+static bool largers (int a, int b)
 {
     bool ret = false;
     if (abs (a - b) < 32768) {
@@ -102,21 +105,28 @@ __attribute__ ((always_inline)) static inline void create_new_audio_renderer (CO
     }
 }
 
+
+__attribute__ ((always_inline)) static inline int get_numofts (int recvlen);
+__attribute__ ((always_inline)) static inline int get_numofts (int recvlen) {
+    int numofts = (recvlen - 12) / 188;
+    return numofts;
+}
+
 int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMPONENT_T* video_render, TUNNEL_T* tunnel,
                    OMX_BUFFERHEADERTYPE* inbuf, rtppacket** beg, rtppacket* scan,
                    int* port_settings_changed, int* first)
 {
+    (void)inbuf;
+
     bool loop = true;
     int theveryfirst = 1;
-    (void)inbuf;
     while (loop) {
         OMX_BUFFERHEADERTYPE* buf = ilclient_get_input_buffer (video_decode, 130, 1);
         if (buf != NULL) {
             unsigned char* dest = buf->pBuffer;
             int data_len = 0;
             do {
-                int numofts = ((*beg)->recvlen - 12) / 188;
-                for (int i = 0; i < numofts; i++) {
+                for (int i = 0; i < get_numofts((*beg)->recvlen); i++) {
                     unsigned char* buffer = (*beg)->buf + 12u + (unsigned char)i * 188u;
                     short pid = ((0x1Fu & buffer[1]) << 8u) + buffer[2];
                     if (pid == 0x1011) {
@@ -180,75 +190,56 @@ int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMP
 }
 
 
-int idrsockport = -1;
-char* sinkip = "192.168.173.1";
 static void* addnullpacket (rtppacket* beg)
 {
     int fd = socket (AF_INET, SOCK_DGRAM, 0);
     if (fd >= 0) {
-        struct sockaddr_in addr1 = {0};
-        addr1.sin_family = AF_INET;
-        addr1.sin_addr.s_addr = inet_addr (sinkip);
-        addr1.sin_port = htons (1028);
+        struct sockaddr_in addr1 = {.sin_family = AF_INET, .sin_addr.s_addr = inet_addr (sinkip), .sin_port = htons (1028)};
+
         struct timeval tv = {.tv_sec = 10};
         if (setsockopt (fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof (tv)) < 0) {
             perror ("cannot set timeout\n");
             return 0;
-        }
-        if (bind (fd, (struct sockaddr*)&addr1, sizeof (addr1)) < 0) {
+        } else if (bind (fd, (struct sockaddr*)&addr1, sizeof (addr1)) < 0) {
             perror ("bind failed");
             return 0;
         }
-        struct sockaddr_in addr2 = {0};
+        struct sockaddr_in addr2 = {.sin_family = AF_INET,.sin_addr.s_addr = htonl (INADDR_LOOPBACK)};
         int fd2 = 0;
         if (idrsockport > 0) {
             fd2 = socket (AF_INET, SOCK_DGRAM, 0);
             if (fd2 >= 0) {
-                addr2.sin_family = AF_INET;
-                addr2.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
                 addr2.sin_port = htons (idrsockport);
             } else {
                 perror ("cannot create socket\n");
                 return 0;
             }
         }
+
+
+        beg->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
         do {
             struct sockaddr_in sourceaddr;
             socklen_t addrlen = sizeof (sourceaddr);
-            beg->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
             beg->recvlen = recvfrom (fd, beg->buf, 2048, 0, (struct sockaddr*)&sourceaddr, &addrlen);
-            if (beg->recvlen <= 0) {
-                free (beg->buf);
-            } else {
-                beg->seqnum = (beg->buf[2] << 8) + beg->buf[3];
-                beg->next = NULL;
-            }
         } while (beg->recvlen <= 0);
-        int osn = 0;
-        if (beg != NULL) {
-            osn = 0xFFFF & (beg->seqnum);
-        }
+        beg->seqnum = (beg->buf[2] << 8) + beg->buf[3];
+        beg->next = NULL;
+
+
+        int osn = 0xFFFF & (beg->seqnum);
         bool hold = 0;
         int sentseqnum = -1;
         int numofpacket = 1;
         rtppacket* head = beg;
         rtppacket* oldhead = NULL;
         while (true) {
-            rtppacket* p1 = (rtppacket*)malloc (sizeof (rtppacket));
-            p1->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
             struct sockaddr_in sourceaddr;
             socklen_t addrlen = sizeof (sourceaddr);
+            rtppacket* p1 = (rtppacket*)malloc (sizeof (rtppacket));
+            p1->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
             p1->recvlen = recvfrom (fd, p1->buf, 2048, 0, (struct sockaddr*)&sourceaddr, &addrlen);
-            if (p1->recvlen == 0) {
-                free (p1->buf);
-                free (p1);
-            } else if (p1->recvlen < 0) {
-                const char topython[] = "recv timeout";
-                if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
-                    perror ("recv timeout");
-                }
-                exit (1);
-            } else {
+            if (p1->recvlen > 0) {
                 p1->seqnum = (p1->buf[2] << 8) + p1->buf[3];
                 p1->next = NULL;
                 if ((largers (sentseqnum, p1->seqnum)) && (sentseqnum > 0)) {
@@ -285,9 +276,9 @@ static void* addnullpacket (rtppacket* beg)
                             hold = false;
                         } else if (numofpacket > 14) {
                             hold = false;
-                            DBG_PRINTF_TRACE ("start:%d, end:%d\n", osn, head->seqnum);
                             osn = head->seqnum;
                             sentseqnum = osn;
+                            DBG_PRINTF_TRACE ("start:%d, end:%d\n", osn, head->seqnum);
                         } else if ((idrsockport > 0) && (numofpacket == 12)) {
                             const char topython[] = "send idr";
                             if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
@@ -314,7 +305,16 @@ static void* addnullpacket (rtppacket* beg)
                         }
                     }
                 }
-            }
+	    } else if (p1->recvlen == 0) {
+                free (p1->buf);
+                free (p1);
+            } else {
+                const char topython[] = "recv timeout";
+                if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
+                    perror ("recv timeout");
+                }
+                exit (1);
+	    }
         }
     } else {
         perror ("cannot create socket\n");
@@ -328,145 +328,140 @@ static int video_decode_test (rtppacket* beg)
     int status = 0;
     ILCLIENT_T* client = ilclient_init();
     if (client == NULL) {
-        return -3;
+        status = -3;
     } else if (OMX_Init() != OMX_ErrorNone) {
         ilclient_destroy (client);
-        return -4;
-    }
-    // create video_decode
-    COMPONENT_T* list[5] = {0};
-    if (ilclient_create_component (client, &list[0], "video_decode", ILCLIENT_DISABLE_ALL_PORTS | ILCLIENT_ENABLE_INPUT_BUFFERS) != 0) {
-        status = -14;
-    }
-    // create video_render
-    if ((status == 0) && (ilclient_create_component (client, &list[1], "video_render", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
-        status = -14;
-    }
-    // create clock
-    if ((status == 0) && (ilclient_create_component (client, &list[2], "clock", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
-        status = -14;
-    }
-    OMX_TIME_CONFIG_CLOCKSTATETYPE cstate = {0};
-    cstate.nSize = sizeof (cstate);
-    cstate.nVersion.nVersion = OMX_VERSION;
-    cstate.eState = OMX_TIME_ClockStateWaitingForStartTime;
-    cstate.nWaitMask = 1;
-    if ((list[2] != NULL) && (OMX_SetParameter (ILC_GET_HANDLE (list[2]), OMX_IndexConfigTimeClockState, &cstate) != OMX_ErrorNone)) {
-        status = -13;
-    }
-    // create video_scheduler
-    if ((status == 0) && (ilclient_create_component (client, &list[3], "video_scheduler", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
-        status = -14;
-    }
-    COMPONENT_T* audio_render = NULL;
-    create_new_audio_renderer (&audio_render, client, list);
-    TUNNEL_T tunnel[4] = {0};
-    set_tunnel (tunnel, list[0], 131, list[3], 10);
-    set_tunnel (tunnel + 1, list[3], 11, list[1], 90);
-    set_tunnel (tunnel + 2, list[2], 80, list[3], 12);
-    // setup clock tunnel first
-    if ((status == 0) && (ilclient_setup_tunnel (tunnel + 2, 0, 0) != 0)) {
-        status = -15;
+        status = -4;
     } else {
-        ilclient_change_component_state (list[2], OMX_StateExecuting);
-    }
-    if (status == 0) {
-        ilclient_change_component_state (list[0], OMX_StateIdle);
-    }
-    OMX_VIDEO_PARAM_PORTFORMATTYPE format = {0};
-    format.nSize = sizeof (OMX_VIDEO_PARAM_PORTFORMATTYPE);
-    format.nVersion.nVersion = OMX_VERSION;
-    format.nPortIndex = 130;
-    format.eCompressionFormat = OMX_VIDEO_CodingAVC;
-    if ((status == 0) &&
-            (OMX_SetParameter (ILC_GET_HANDLE (list[0]), OMX_IndexParamVideoPortFormat, &format) == OMX_ErrorNone) &&
-            (ilclient_enable_port_buffers (list[0], 130, NULL, NULL, NULL) == 0)
-       ) {
-        OMX_BUFFERHEADERTYPE* buf = NULL;
-        int port_settings_changed = 0;
-        ilclient_change_component_state (list[0], OMX_StateExecuting);
-        int oldcc = 0;
-        int peserror = 1;
-        int first = 1;
-        rtppacket* scan = beg;
-        while (true) {
-            int non = atomic_load (&numofnode);
-            if (non < 2) {
-                usleep (10);
-            } else {
-                int numofts = (scan->recvlen - 12) / 188;
-                for (int i = 0; i < numofts; i++) {
-                    unsigned char* buffer = scan->buf + 12u + (unsigned int)i * 188u;
-                    unsigned char sync = buffer[0];
-                    if (sync == 0x47u) {
-                        short pid = ((0x1Fu & buffer[1]) << 8u) + buffer[2];
-                        if (pid == 0x1011) {
-                            int ad = 3u & (buffer[3] >> 4u);
-                            int cc = buffer[3] & 0x0Fu;
-                            if (cc != oldcc) {
-                                DBG_PRINTF_TRACE ("oldcc %d cc %d\n", oldcc, cc);
-                                oldcc = cc;
-                                peserror = 1;
-                            }
-                            oldcc = 0xF & (oldcc + 1);
-                            if ((ad & 1) != 0) {
-                                int adlen = buffer[4];
-                                int shift = (ad == 1) ? 4 : (adlen + 5);
-                                if (newpesstart (buffer, shift)) {
-                                    if (peserror == 0) {
-                                        (void)sendtodecoder (list[0], list[3], list[1], tunnel, buf, &beg, scan, &port_settings_changed, &first);
-                                    } else {
-                                        while (beg != scan) {
-                                            advance_packet (beg);
+        // create video_decode
+        COMPONENT_T* list[5] = {0};
+        if (ilclient_create_component (client, &list[0], "video_decode", ILCLIENT_DISABLE_ALL_PORTS | ILCLIENT_ENABLE_INPUT_BUFFERS) != 0) {
+            status = -14;
+        }
+        // create video_render
+        if ((status == 0) && (ilclient_create_component (client, &list[1], "video_render", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
+            status = -14;
+        }
+        // create clock
+        if ((status == 0) && (ilclient_create_component (client, &list[2], "clock", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
+            status = -14;
+        }
+        OMX_TIME_CONFIG_CLOCKSTATETYPE cstate = {0};
+        cstate.nSize = sizeof (cstate);
+        cstate.nVersion.nVersion = OMX_VERSION;
+        cstate.eState = OMX_TIME_ClockStateWaitingForStartTime;
+        cstate.nWaitMask = 1;
+        if ((list[2] != NULL) && (OMX_SetParameter (ILC_GET_HANDLE (list[2]), OMX_IndexConfigTimeClockState, &cstate) != OMX_ErrorNone)) {
+            status = -13;
+        }
+        // create video_scheduler
+        if ((status == 0) && (ilclient_create_component (client, &list[3], "video_scheduler", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
+            status = -14;
+        }
+        COMPONENT_T* audio_render = NULL;
+        create_new_audio_renderer (&audio_render, client, list);
+        TUNNEL_T tunnel[4] = {0};
+        set_tunnel (tunnel, list[0], 131, list[3], 10);
+        set_tunnel (tunnel + 1, list[3], 11, list[1], 90);
+        set_tunnel (tunnel + 2, list[2], 80, list[3], 12);
+        // setup clock tunnel first
+        if ((status == 0) && (ilclient_setup_tunnel (tunnel + 2, 0, 0) != 0)) {
+            status = -15;
+        } else {
+            ilclient_change_component_state (list[2], OMX_StateExecuting);
+        }
+        if (status == 0) {
+            ilclient_change_component_state (list[0], OMX_StateIdle);
+        }
+        OMX_VIDEO_PARAM_PORTFORMATTYPE format = {0};
+        format.nSize = sizeof (OMX_VIDEO_PARAM_PORTFORMATTYPE);
+        format.nVersion.nVersion = OMX_VERSION;
+        format.nPortIndex = 130;
+        format.eCompressionFormat = OMX_VIDEO_CodingAVC;
+        if ((status == 0) &&
+                (OMX_SetParameter (ILC_GET_HANDLE (list[0]), OMX_IndexParamVideoPortFormat, &format) == OMX_ErrorNone) &&
+                (ilclient_enable_port_buffers (list[0], 130, NULL, NULL, NULL) == 0)) {
+            OMX_BUFFERHEADERTYPE* buf = NULL;
+            int port_settings_changed = 0;
+            ilclient_change_component_state (list[0], OMX_StateExecuting);
+            int oldcc = 0;
+            int peserror = 1;
+            int first = 1;
+            rtppacket* scan = beg;
+            while (true) {
+                int non = atomic_load (&numofnode);
+                if (non < 2) {
+                    usleep (10);
+                } else {
+                    for (int i = 0; i < get_numofts(scan->recvlen); i++) {
+                        unsigned char* buffer = scan->buf + 12u + (unsigned int)i * 188u;
+                        unsigned char sync = buffer[0];
+                        if (sync == 0x47u) {
+                            short pid = ((0x1Fu & buffer[1]) << 8u) + buffer[2];
+                            if (pid == 0x1011) {
+                                int cc = buffer[3] & 0x0Fu;
+                                if (cc != oldcc) {
+                                    DBG_PRINTF_TRACE ("oldcc %d cc %d\n", oldcc, cc);
+                                    oldcc = cc;
+                                    peserror = 1;
+                                }
+                                oldcc = 0xF & (oldcc + 1);
+                                int ad = 3u & (buffer[3] >> 4u);
+                                if ((ad & 1) != 0) {
+                                    int shift = (ad == 1) ? 4 : (buffer[4] + 5);
+                                    if (newpesstart (buffer, shift)) {
+                                        if (peserror == 0) {
+                                            (void)sendtodecoder (list[0], list[3], list[1], tunnel, buf, &beg, scan, &port_settings_changed, &first);
+                                        } else {
+                                            while (beg != scan) {
+                                                advance_packet (&beg);
+                                            }
+                                            first = 1;
+                                            peserror = 0;
                                         }
-                                        first = 1;
-                                        peserror = 0;
                                     }
                                 }
-                            }
-                        } else if (pid == 0x1100) {
-                            int ad = (3u & (buffer[3] >> 4u));
-                            if ((ad & 1) != 0) {
-                                int adlen = buffer[4];
-                                int shift = (ad == 1) ? 4 : (adlen + 5);
-                                if (newpesstart (buffer, shift)) {
-                                    shift += 20;
+                            } else if (pid == 0x1100) {
+                                int ad = (3u & (buffer[3] >> 4u));
+                                if ((ad & 1) != 0) {
+                                    int shift = (ad == 1) ? 4 : (buffer[4] + 5);
+                                    if (newpesstart (buffer, shift)) {
+                                        shift += 20;
+                                    }
+                                    if (audioplay_play_buffer (audio_render, buffer + shift, 188 - shift) < 0) {
+                                        DBG_PRINTF_ERROR ("sound error\n");
+                                    }
                                 }
-                                if (audioplay_play_buffer (audio_render, buffer + shift, 188 - shift) < 0) {
-                                    DBG_PRINTF_ERROR ("sound error\n");
-                                }
+                            } else {
+                                /* empty */
                             }
-                        } else {
-                            /* empty */
                         }
                     }
+                    atomic_fetch_sub (&numofnode, 1);
+                    scan = scan->next;
                 }
-                atomic_fetch_sub (&numofnode, 1);
-                scan = scan->next;
             }
+            if (buf != NULL) {
+                buf->nFilledLen = 0;
+                buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;
+            }
+            if (OMX_EmptyThisBuffer (ILC_GET_HANDLE (list[0]), buf) != OMX_ErrorNone) {
+                status = -20;
+            }
+            ilclient_wait_for_event (list[1], OMX_EventBufferFlag, 90, 0, OMX_BUFFERFLAG_EOS, 0, ILCLIENT_BUFFER_FLAG_EOS, -1); // wait for EOS from render
+            ilclient_flush_tunnels (tunnel, 0); // need to flush the renderer to allow video_decode to disable its input port
         }
-        if (buf != NULL) {
-            buf->nFilledLen = 0;
-            buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;
-        }
-        if (OMX_EmptyThisBuffer (ILC_GET_HANDLE (list[0]), buf) != OMX_ErrorNone) {
-            status = -20;
-        }
-        // wait for EOS from render
-        ilclient_wait_for_event (list[1], OMX_EventBufferFlag, 90, 0, OMX_BUFFERFLAG_EOS, 0, ILCLIENT_BUFFER_FLAG_EOS, -1);
-        // need to flush the renderer to allow video_decode to disable its input port
-        ilclient_flush_tunnels (tunnel, 0);
+        ilclient_disable_tunnel (tunnel);
+        ilclient_disable_tunnel (tunnel + 1);
+        ilclient_disable_tunnel (tunnel + 2);
+        ilclient_disable_port_buffers (list[0], 130, NULL, NULL, NULL);
+        ilclient_teardown_tunnels (tunnel);
+        ilclient_state_transition (list, OMX_StateIdle);
+        ilclient_state_transition (list, OMX_StateLoaded);
+        ilclient_cleanup_components (list);
+        OMX_Deinit();
+        ilclient_destroy (client);
     }
-    ilclient_disable_tunnel (tunnel);
-    ilclient_disable_tunnel (tunnel + 1);
-    ilclient_disable_tunnel (tunnel + 2);
-    ilclient_disable_port_buffers (list[0], 130, NULL, NULL, NULL);
-    ilclient_teardown_tunnels (tunnel);
-    ilclient_state_transition (list, OMX_StateIdle);
-    ilclient_state_transition (list, OMX_StateLoaded);
-    ilclient_cleanup_components (list);
-    OMX_Deinit();
-    ilclient_destroy (client);
     return status;
 }
 

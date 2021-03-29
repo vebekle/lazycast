@@ -28,3 +28,10 @@ int debug_printf_ln(const char *color, const char *fileName, const char *funcNam
 
     return debug_print_callback(outgoingBuffer, DGB_PRINT_BUFFER_SIZE);
 }
+
+int debug_print_callback (char* debugMessage, unsigned int length)
+{
+    (void)length;
+    (void)printf ("%s", debugMessage);
+    return 0;
+}

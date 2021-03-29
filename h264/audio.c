@@ -40,12 +40,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define DBG_PRINT_ENABLED 0
 #include "debug_print.h"
 
-int debug_print_callback (char* debugMessage, unsigned int length)
-{
-    (void)length;
-    (void)printf ("%s", debugMessage);
-    return 0;
-}
 
 typedef int int32_t;
 static uint32_t audioplay_alsapcm_init (void);
