@@ -112,6 +112,34 @@ __attribute__ ((always_inline)) static inline int get_numofts (int recvlen) {
     return numofts;
 }
 
+__attribute__ ((always_inline)) static inline void insert_into_list (rtppacket** head, rtppacket** p1);
+__attribute__ ((always_inline)) static inline void insert_into_list (rtppacket** head, rtppacket** p1) {
+    rtppacket* currentp = *head;
+    rtppacket* prevp = NULL;
+    while (currentp != NULL) {
+        if (largers (currentp->seqnum, (*p1)->seqnum)) {
+            if (prevp == NULL) {
+                /* insert p1 into beginning */
+                *head = *p1;
+            } else {
+    	    /* insert p1 between pervp and currentp */
+                prevp->next = *p1;
+            }
+            (*p1)->next = currentp;
+            break;
+        } else {
+    	    /* advance search by 1 */
+            prevp = currentp;
+            currentp = currentp->next;
+        }
+    }
+    if ((currentp == NULL)) {
+        /* append to end */
+        prevp->next = *p1;
+    }
+}
+
+
 int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMPONENT_T* video_render, TUNNEL_T* tunnel,
                    OMX_BUFFERHEADERTYPE* inbuf, rtppacket** beg, rtppacket* scan,
                    int* port_settings_changed, int* first)
@@ -228,71 +256,52 @@ static void* addnullpacket (rtppacket* beg)
 
 
         int osn = 0xFFFF & (beg->seqnum);
-        bool hold = 0;
+        bool hold = false;
         int sentseqnum = -1;
         int numofpacket = 1;
         rtppacket* head = beg;
         rtppacket* oldhead = NULL;
+        rtppacket* p1 = (rtppacket*)malloc (sizeof (rtppacket));
+        p1->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
+
         while (true) {
             struct sockaddr_in sourceaddr;
             socklen_t addrlen = sizeof (sourceaddr);
-            rtppacket* p1 = (rtppacket*)malloc (sizeof (rtppacket));
-            p1->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
             p1->recvlen = recvfrom (fd, p1->buf, 2048, 0, (struct sockaddr*)&sourceaddr, &addrlen);
+            p1->next = NULL;
+
             if (p1->recvlen > 0) {
                 p1->seqnum = (p1->buf[2] << 8) + p1->buf[3];
-                p1->next = NULL;
                 if ((largers (sentseqnum, p1->seqnum)) && (sentseqnum > 0)) {
                     DBG_PRINTF_WARNING ("drop:%d\n", p1->seqnum);
-                    free (p1->buf);
-                    free (p1);
+		    /* goto next iteration */
                 } else {
                     if (numofpacket == 0) {
                         head = p1;
                     } else {
-                        rtppacket* currentp = head;
-                        rtppacket* prevp = NULL;
-                        while (currentp != NULL) {
-                            if (largers (currentp->seqnum, p1->seqnum)) {
-                                if (prevp == NULL) {
-                                    head = p1;
-                                } else {
-                                    prevp->next = p1;
-                                }
-                                p1->next = currentp;
-                                break;
-                            } else {
-                                prevp = currentp;
-                                currentp = currentp->next;
-                            }
-                        }
-                        if ((currentp == NULL) && (prevp != NULL)) {
-                            prevp->next = p1;
-                        }
+			insert_into_list(&head,&p1);
                     }
                     numofpacket++;
-                    if (head != NULL) {
-                        if (head->seqnum == osn) {
-                            hold = false;
-                        } else if (numofpacket > 14) {
-                            hold = false;
-                            osn = head->seqnum;
-                            sentseqnum = osn;
-                            DBG_PRINTF_TRACE ("start:%d, end:%d\n", osn, head->seqnum);
-                        } else if ((idrsockport > 0) && (numofpacket == 12)) {
-                            const char topython[] = "send idr";
-                            if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
-                                perror ("sendto error");
-                            }
-                            DBG_PRINTF_TRACE ("idr:%d\n", numofpacket);
-                        } else {
-                            /* empty */
+                    if (head->seqnum == osn) {
+                        hold = false;
+                    } else if (numofpacket > 14) {
+                        hold = false;
+                        osn = head->seqnum;
+                        sentseqnum = osn;
+                        DBG_PRINTF_TRACE ("start:%d, end:%d\n", osn, head->seqnum);
+                    } else if ((idrsockport > 0) && (numofpacket == 12)) {
+                        const char topython[] = "send idr";
+                        if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
+                            perror ("sendto error");
                         }
+                        DBG_PRINTF_TRACE ("idr:%d\n", numofpacket);
+                    } else {
+                        /* empty */
                     }
-                    if ((head != NULL) && (numofpacket > 0) && (!hold) && (osn == head->seqnum) && (oldhead != NULL)) {
+                    if ((numofpacket > 0) && (!hold) && (osn == head->seqnum) && (oldhead != NULL)) {
                         oldhead->next = head;
                     }
-                    while ((numofpacket > 0) && (!hold) && (head != NULL)) {
+                    while ((numofpacket > 0) && (!hold)) {
                         if (osn != head->seqnum) {
                             hold = true;
                         } else {
@@ -304,10 +313,12 @@ static void* addnullpacket (rtppacket* beg)
                             atomic_fetch_add (&numofnode, 1);
                         }
                     }
+		    /* allocate packet for next iteration */
+                    p1 = (rtppacket*)malloc (sizeof (rtppacket));
+                    p1->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
                 }
 	    } else if (p1->recvlen == 0) {
-                free (p1->buf);
-                free (p1);
+		/* do nothing */
             } else {
                 const char topython[] = "recv timeout";
                 if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
@@ -346,11 +357,7 @@ static int video_decode_test (rtppacket* beg)
         if ((status == 0) && (ilclient_create_component (client, &list[2], "clock", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
             status = -14;
         }
-        OMX_TIME_CONFIG_CLOCKSTATETYPE cstate = {0};
-        cstate.nSize = sizeof (cstate);
-        cstate.nVersion.nVersion = OMX_VERSION;
-        cstate.eState = OMX_TIME_ClockStateWaitingForStartTime;
-        cstate.nWaitMask = 1;
+        OMX_TIME_CONFIG_CLOCKSTATETYPE cstate = {.nSize = sizeof (cstate), .nVersion.nVersion = OMX_VERSION, .eState = OMX_TIME_ClockStateWaitingForStartTime, cstate.nWaitMask = 1};
         if ((list[2] != NULL) && (OMX_SetParameter (ILC_GET_HANDLE (list[2]), OMX_IndexConfigTimeClockState, &cstate) != OMX_ErrorNone)) {
             status = -13;
         }
