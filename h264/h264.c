@@ -211,12 +211,10 @@ static int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_schedule
                     if (pid == 0x1011) {
                         int ad = extract_ad(buffer);
                         if ((ad & 1) == 1) {
-                            int shift = extract_shift(buffer,ad);
-                            if (theveryfirst != 0) {
-                                shift += 14;
-                                theveryfirst = 0;
-                            }
-                            (void)memcpy (dest + data_len, buffer + shift, 188 - shift);
+                            int shift = extract_shift(buffer,ad) + theveryfirst*14;
+			    buffer += shift;
+                            theveryfirst = 0;
+                            (void)memcpy (dest + data_len, buffer, 188 - shift);
                             data_len += 188 - shift;
                         }
                     }
@@ -299,7 +297,6 @@ static void* addnullpacket (rtppacket* beg)
         } while (beg->recvlen <= 0);
 
         bool hold = false;
-        int sentseqnum = -1;
         int numofpacket = 1;
 
         rtppacket* head = beg;
@@ -309,10 +306,10 @@ static void* addnullpacket (rtppacket* beg)
 
         rtppacket* p1 = allocate_new_packet();
 
-        while (true) {
+        do {
             receive_data(p1,fd);
             if (p1->recvlen > 0) {
-                if ((largers (sentseqnum, p1->seqnum)) && (sentseqnum > 0)) {
+                if (largers (osn, p1->seqnum)) {
                     DBG_PRINTF_WARNING ("drop:%d\n", p1->seqnum);
 		    /* goto next iteration */
                 } else {
@@ -326,46 +323,40 @@ static void* addnullpacket (rtppacket* beg)
                         hold = false;
                     } else if (numofpacket > 14) {
                         hold = false;
-                        DBG_PRINTF_TRACE ("start:%d, end:%d\n", osn, head->seqnum);
                         osn = head->seqnum;
-                        sentseqnum = osn;
                     } else if ((idrsockport > 0) && (numofpacket == 12)) {
                         const char topython[] = "send idr";
                         if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
                             perror ("sendto error");
                         }
                         DBG_PRINTF_TRACE ("idr:%d\n", numofpacket);
-                    } else {
-                        /* empty */
                     }
                     if ((numofpacket > 0) && (osn == head->seqnum) && (oldhead != NULL)) {
                         oldhead->next = head;
                     }
                     while ((numofpacket > 0) && (!hold)) {
-                        if (osn != head->seqnum) {
-                            hold = true;
-                        } else {
-                            sentseqnum = osn;
+                        if (osn == head->seqnum) {
                             osn = 0xFFFF & (osn + 1);
                             oldhead = head;
                             head = head->next;
                             numofpacket--;
                             atomic_fetch_add (&numofnode, 1);
+                        } else {
+                            hold = true;
                         }
                     }
 		    /* allocate packet for next iteration */
 		    p1 = allocate_new_packet();
                 }
-	    } else if (p1->recvlen == 0) {
-		/* do nothing */
-            } else {
-                const char topython[] = "recv timeout";
-                if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
-                    perror ("recv timeout");
-                }
-                exit (1);
 	    }
-        }
+        } while (p1->recvlen>=0);
+
+	if (p1->recvlen<0) {
+            const char topython[] = "recv timeout";
+            if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
+                perror ("recv timeout");
+            }
+	}
     } else {
         perror ("cannot create socket\n");
     }
@@ -429,29 +420,28 @@ static int video_decode_test (rtppacket* beg)
             int peserror = 1;
             int first = 1;
             rtppacket* scan = beg;
-            while (true) {
+            do {
                 int non = atomic_load (&numofnode);
                 if (non < 2) {
 		    /* need at least two nodes, so one can be consumed */
-                    usleep (10);
+                    usleep (1);
                 } else {
 		    /* consume one node */
                     for (int i = 0; i < get_numofts(scan); i++) {
                         unsigned char* buffer = scan->buf + 12u + (unsigned int)i * 188u;
-                        unsigned char sync = buffer[0];
-                        int ad = extract_ad(buffer);
-                        int shift = extract_shift(buffer,ad);
-                        short pid = extract_pid(buffer);
-                        int cc = extract_cc(buffer);
+                        if (buffer[0] == 0x47u) {
+                            int ad = extract_ad(buffer);
+                            int shift = extract_shift(buffer,ad);
+                            short pid = extract_pid(buffer);
+                            int cc = extract_cc(buffer);
 
-                        if (sync == 0x47u) {
                             if (pid == 0x1011) {
                                 if (cc != oldcc) {
                                     DBG_PRINTF_TRACE ("oldcc %d cc %d\n", oldcc, cc);
-                                    oldcc = cc;
                                     peserror = 1;
                                 }
-                                oldcc = 0xF & (oldcc + 1);
+                                oldcc = 0xF & (cc + 1);
+
                                 if ((ad & 1) != 0) {
                                     if (newpesstart (buffer, shift)) {
                                         if (peserror == 0) {
@@ -479,11 +469,10 @@ static int video_decode_test (rtppacket* beg)
                             }
                         }
                     }
-		    /* reduce node number by one, advance scan by one */
                     atomic_fetch_sub (&numofnode, 1);
                     scan = scan->next;
                 }
-            }
+            } while (true);
             if (buf != NULL) {
                 buf->nFilledLen = 0;
                 buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;

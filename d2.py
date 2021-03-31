@@ -34,8 +34,8 @@ sound_output_select = 0
 # 0: HDMI sound output
 # 1: 3.5mm audio jack output
 # 2: alsa
-disable_1920_1080_60fps = 0
-enable_mouse_keyboard = 1
+disable_1920_1080_60fps = 1
+enable_mouse_keyboard = 0
 
 display_power_management = 0
 # 1: (For projectors) Put the display in sleep mode when not in use by lazycast 

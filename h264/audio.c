@@ -50,43 +50,19 @@ bool is_alsa = false;
 
 int32_t audioplay_create (ILCLIENT_T* client, COMPONENT_T** audio_render, COMPONENT_T** list, int listindex)
 {
-    int32_t ret = -1;
-    int size = 4096;
-    OMX_ERRORTYPE error;
-    OMX_PARAM_PORTDEFINITIONTYPE param;
-    OMX_AUDIO_PARAM_PCMMODETYPE pcm;
-    ret = 0;
+    int32_t ret = 0;
     ilclient_create_component (client, audio_render, "audio_render", ILCLIENT_ENABLE_INPUT_BUFFERS | ILCLIENT_DISABLE_ALL_PORTS);
     assert (*audio_render != NULL);
     list[listindex] = *audio_render;
     // set up the number/size of buffers
-    (void)memset (&param, 0, sizeof (OMX_PARAM_PORTDEFINITIONTYPE));
-    param.nSize = sizeof (OMX_PARAM_PORTDEFINITIONTYPE);
-    param.nVersion.nVersion = OMX_VERSION;
-    param.nPortIndex = 100;
-    error = OMX_GetParameter (ILC_GET_HANDLE (*audio_render), OMX_IndexParamPortDefinition, &param);
-    assert (error == OMX_ErrorNone);
-    param.nBufferSize = size;
-    param.nBufferCountActual = 4;
+    OMX_PARAM_PORTDEFINITIONTYPE param = {.nSize = sizeof (OMX_PARAM_PORTDEFINITIONTYPE),.nVersion.nVersion = OMX_VERSION,.nPortIndex = 100,.nBufferSize = 4096,.nBufferCountActual = 4};
+    assert (OMX_ErrorNone == OMX_GetParameter (ILC_GET_HANDLE (*audio_render), OMX_IndexParamPortDefinition, &param));
     //param.nBufferCountActual = num_buffers;
-    error = OMX_SetParameter (ILC_GET_HANDLE (*audio_render), OMX_IndexParamPortDefinition, &param);
-    assert (error == OMX_ErrorNone);
+    assert (OMX_ErrorNone == OMX_SetParameter (ILC_GET_HANDLE (*audio_render), OMX_IndexParamPortDefinition, &param));
     // set the pcm parameters
-    (void)memset (&pcm, 0, sizeof (OMX_AUDIO_PARAM_PCMMODETYPE));
-    pcm.nSize = sizeof (OMX_AUDIO_PARAM_PCMMODETYPE);
-    pcm.nVersion.nVersion = OMX_VERSION;
-    pcm.nPortIndex = 100;
-    pcm.nChannels = 2;
-    pcm.eNumData = OMX_NumericalDataSigned;
-    pcm.eEndian = OMX_EndianBig;
-    pcm.nSamplingRate = 48000;
-    pcm.bInterleaved = OMX_TRUE;
-    pcm.nBitPerSample = 16;
-    pcm.ePCMMode = OMX_AUDIO_PCMModeLinear;
-    pcm.eChannelMapping[1] = OMX_AUDIO_ChannelRF;
-    pcm.eChannelMapping[0] = OMX_AUDIO_ChannelLF;
-    error = OMX_SetParameter (ILC_GET_HANDLE (*audio_render), OMX_IndexParamAudioPcm, &pcm);
-    assert (error == OMX_ErrorNone);
+    OMX_AUDIO_PARAM_PCMMODETYPE pcm = {.nSize = sizeof (OMX_AUDIO_PARAM_PCMMODETYPE),.nVersion.nVersion = OMX_VERSION,.nPortIndex = 100,.nChannels = 2,.eNumData = OMX_NumericalDataSigned,
+    .eEndian = OMX_EndianBig,.nSamplingRate = 48000,.bInterleaved = OMX_TRUE,.nBitPerSample = 16,.ePCMMode = OMX_AUDIO_PCMModeLinear,.eChannelMapping[1] = OMX_AUDIO_ChannelRF,.eChannelMapping[0] = OMX_AUDIO_ChannelLF};
+    assert (OMX_ErrorNone == OMX_SetParameter (ILC_GET_HANDLE (*audio_render), OMX_IndexParamAudioPcm, &pcm));
     ilclient_change_component_state (*audio_render, OMX_StateIdle);
     if (ilclient_enable_port_buffers (*audio_render, 100, NULL, NULL, NULL) < 0) {
         // error
@@ -100,12 +76,9 @@ int32_t audioplay_create (ILCLIENT_T* client, COMPONENT_T** audio_render, COMPON
 
 int32_t audioplay_delete (COMPONENT_T* audio_render)
 {
-    OMX_ERRORTYPE error;
     ilclient_change_component_state (audio_render, OMX_StateIdle);
-    error = OMX_SendCommand (ILC_GET_HANDLE (audio_render), OMX_CommandStateSet, OMX_StateLoaded, NULL);
-    assert (error == OMX_ErrorNone);
+    assert (OMX_ErrorNone == OMX_SendCommand (ILC_GET_HANDLE (audio_render), OMX_CommandStateSet, OMX_StateLoaded, NULL));
     ilclient_change_component_state (audio_render, OMX_StateLoaded);
-    assert (error == OMX_ErrorNone);
     return 0;
 }
 
@@ -127,7 +100,7 @@ int32_t audioplay_play_buffer (COMPONENT_T* audio_render, uint8_t* buffer, uint3
             OMX_ERRORTYPE error;
             hdr->nOffset = 0;
             (void)memcpy (hdr->pBuffer, buffer, length);
-             hdr->nFilledLen = length;
+            hdr->nFilledLen = length;
             error = OMX_EmptyThisBuffer (ILC_GET_HANDLE (audio_render), hdr);
             assert (error == OMX_ErrorNone);
 	}
@@ -229,14 +202,8 @@ static uint32_t audioplay_alsapcm_init (void)
 
 uint32_t audioplay_get_latency (COMPONENT_T* audio_render)
 {
-    OMX_PARAM_U32TYPE param;
-    OMX_ERRORTYPE error;
-    (void)memset (&param, 0, sizeof (OMX_PARAM_U32TYPE));
-    param.nSize = sizeof (OMX_PARAM_U32TYPE);
-    param.nVersion.nVersion = OMX_VERSION;
-    param.nPortIndex = 100;
-    error = OMX_GetConfig (ILC_GET_HANDLE (audio_render), OMX_IndexConfigAudioRenderingLatency, &param);
-    assert (error == OMX_ErrorNone);
+    OMX_PARAM_U32TYPE param = {.nSize = sizeof (OMX_PARAM_U32TYPE),.nVersion.nVersion = OMX_VERSION,.nPortIndex = 100};
+    assert (OMX_ErrorNone == OMX_GetConfig (ILC_GET_HANDLE (audio_render), OMX_IndexConfigAudioRenderingLatency, &param));
     return param.nU32;
 }
 
