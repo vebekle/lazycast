@@ -72,8 +72,11 @@ static bool largers (int a, int b)
     return ret;
 }
 
-__attribute__ ((always_inline)) static inline void advance_packet (rtppacket** beg);
-__attribute__ ((always_inline)) static inline void advance_packet (rtppacket** beg)
+#define INLINE __attribute__((always_inline)) static inline
+#define STATIC static
+
+INLINE void advance_packet (rtppacket** beg);
+INLINE void advance_packet (rtppacket** beg)
 {
     /* no null pointer check here !!! need to check if this always works out!!! */
     rtppacket* nexttemp = (*beg)->next;
@@ -83,24 +86,26 @@ __attribute__ ((always_inline)) static inline void advance_packet (rtppacket** b
 }
 
 
-__attribute__ ((always_inline)) static inline rtppacket* allocate_new_packet (void);
-__attribute__ ((always_inline)) static inline rtppacket* allocate_new_packet (void) {
+INLINE rtppacket* allocate_new_packet (void);
+INLINE rtppacket* allocate_new_packet (void) {
     rtppacket* p1 = (rtppacket*)malloc (sizeof (rtppacket));
     p1->next = NULL;
     p1->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
+    p1->seqnum = -1;
+    p1->recvlen = 0;
     return p1;
 }
 
 
-__attribute__ ((always_inline)) static inline bool newpesstart (unsigned char* buffer, int shift);
-__attribute__ ((always_inline)) static inline bool newpesstart (unsigned char* buffer, int shift)
+INLINE bool newpesstart (unsigned char* buffer, int shift);
+INLINE bool newpesstart (unsigned char* buffer, int shift)
 {
     bool start = ((buffer[shift] == 0u) && (buffer[shift + 1] == 0u) && (buffer[shift + 2] == 1u));
     return start;
 }
 
-__attribute__ ((always_inline)) static inline void create_new_audio_renderer (COMPONENT_T** audio_render, ILCLIENT_T* client, COMPONENT_T** list);
-__attribute__ ((always_inline)) static inline void create_new_audio_renderer (COMPONENT_T** audio_render, ILCLIENT_T* client, COMPONENT_T** list)
+INLINE void create_new_audio_renderer (COMPONENT_T** audio_render, ILCLIENT_T* client, COMPONENT_T** list);
+INLINE void create_new_audio_renderer (COMPONENT_T** audio_render, ILCLIENT_T* client, COMPONENT_T** list)
 {
     if (audioplay_create (client, audio_render, list, 4) != 0) {
         DBG_PRINTF_ERROR ("create error\n");
@@ -115,14 +120,14 @@ __attribute__ ((always_inline)) static inline void create_new_audio_renderer (CO
 }
 
 
-__attribute__ ((always_inline)) static inline int get_numofts (int recvlen);
-__attribute__ ((always_inline)) static inline int get_numofts (int recvlen) {
-    int numofts = (recvlen - 12) / 188;
+INLINE int get_numofts (rtppacket* p1);
+INLINE int get_numofts (rtppacket* p1) {
+    int numofts = (p1->recvlen - 12) / 188;
     return numofts;
 }
 
-__attribute__ ((always_inline)) static inline void insert_into_list (rtppacket** head, rtppacket** p1);
-__attribute__ ((always_inline)) static inline void insert_into_list (rtppacket** head, rtppacket** p1) {
+INLINE void insert_into_list (rtppacket** head, rtppacket** p1);
+INLINE void insert_into_list (rtppacket** head, rtppacket** p1) {
     rtppacket* currentp = *head;
     rtppacket* prevp = NULL;
     while (currentp != NULL) {
@@ -148,30 +153,42 @@ __attribute__ ((always_inline)) static inline void insert_into_list (rtppacket**
     }
 }
 
-__attribute__ ((always_inline)) static inline short extract_pid (unsigned char* buffer);
-__attribute__ ((always_inline)) static inline short extract_pid (unsigned char* buffer) {
+INLINE short extract_pid (unsigned char* buffer);
+INLINE short extract_pid (unsigned char* buffer) {
     short pid = ((0x1Fu & buffer[1]) << 8u) + buffer[2];
     return pid;
 }
 
-__attribute__ ((always_inline)) static inline int extract_cc (unsigned char* buffer);
-__attribute__ ((always_inline)) static inline int extract_cc (unsigned char* buffer) {
+INLINE int extract_cc (unsigned char* buffer);
+INLINE int extract_cc (unsigned char* buffer) {
     int cc = buffer[3] & 0x0Fu;
     return cc;
 }
 
-__attribute__ ((always_inline)) static inline int extract_ad (unsigned char* buffer);
-__attribute__ ((always_inline)) static inline int extract_ad (unsigned char* buffer) {
+INLINE int extract_ad (unsigned char* buffer);
+INLINE int extract_ad (unsigned char* buffer) {
     int ad = 3u & (buffer[3] >> 4u);
     return ad;
 }
 
-__attribute__ ((always_inline)) static inline int extract_shift (unsigned char* buffer,int ad);
-__attribute__ ((always_inline)) static inline int extract_shift (unsigned char* buffer,int ad) {
+INLINE int extract_shift (unsigned char* buffer,int ad);
+INLINE int extract_shift (unsigned char* buffer,int ad) {
     int adlen = buffer[4];
     int shift = (ad == 1) ? 4 : (adlen + 5);
     return shift;
 }
+
+INLINE void receive_data (rtppacket* p1, int fd);
+INLINE void receive_data (rtppacket* p1, int fd) {
+    struct sockaddr_in sourceaddr;
+    socklen_t addrlen = sizeof (sourceaddr);
+    p1->recvlen = recvfrom (fd, p1->buf, 2048, 0, (struct sockaddr*)&sourceaddr, &addrlen);
+    if(p1->recvlen>=0) {
+        p1->seqnum = (p1->buf[2] << 8) + p1->buf[3];
+    }
+}
+
+
 static int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMPONENT_T* video_render, TUNNEL_T* tunnel,
                    OMX_BUFFERHEADERTYPE** buf, rtppacket** beg, rtppacket* scan,
                    int* port_settings_changed, int* first);
@@ -188,7 +205,7 @@ static int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_schedule
             unsigned char* dest = (*buf)->pBuffer;
             int data_len = 0;
             do {
-                for (int i = 0; i < get_numofts((*beg)->recvlen); i++) {
+                for (int i = 0; i < get_numofts((*beg)); i++) {
                     unsigned char* buffer = (*beg)->buf + 12u + (unsigned char)i * 188u;
                     short pid = extract_pid(buffer);
                     if (pid == 0x1011) {
@@ -255,6 +272,7 @@ static void* addnullpacket (rtppacket* beg)
     int fd = socket (AF_INET, SOCK_DGRAM, 0);
     if (fd >= 0) {
         struct sockaddr_in addr1 = {.sin_family = AF_INET, .sin_addr.s_addr = inet_addr (sinkip), .sin_port = htons (1028)};
+        socklen_t addrlen = sizeof (addr1);
 
         struct timeval tv = {.tv_sec = 10};
         if (setsockopt (fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof (tv)) < 0) {
@@ -277,28 +295,23 @@ static void* addnullpacket (rtppacket* beg)
         }
 
         do {
-            struct sockaddr_in sourceaddr;
-            socklen_t addrlen = sizeof (sourceaddr);
-            beg->recvlen = recvfrom (fd, beg->buf, 2048, 0, (struct sockaddr*)&sourceaddr, &addrlen);
+	    receive_data(beg,fd);
         } while (beg->recvlen <= 0);
-        beg->seqnum = (beg->buf[2] << 8) + beg->buf[3];
-        int osn = (beg->seqnum);
+
         bool hold = false;
         int sentseqnum = -1;
         int numofpacket = 1;
 
         rtppacket* head = beg;
+        int osn = head->seqnum;
+
         rtppacket* oldhead = NULL;
 
         rtppacket* p1 = allocate_new_packet();
 
         while (true) {
-            struct sockaddr_in sourceaddr;
-            socklen_t addrlen = sizeof (sourceaddr);
-            p1->recvlen = recvfrom (fd, p1->buf, 2048, 0, (struct sockaddr*)&sourceaddr, &addrlen);
-
+            receive_data(p1,fd);
             if (p1->recvlen > 0) {
-                p1->seqnum = (p1->buf[2] << 8) + p1->buf[3];
                 if ((largers (sentseqnum, p1->seqnum)) && (sentseqnum > 0)) {
                     DBG_PRINTF_WARNING ("drop:%d\n", p1->seqnum);
 		    /* goto next iteration */
@@ -309,7 +322,7 @@ static void* addnullpacket (rtppacket* beg)
 			insert_into_list(&head,&p1);
                     }
                     numofpacket++;
-                    if (head->seqnum == osn) {
+                    if (osn == head->seqnum) {
                         hold = false;
                     } else if (numofpacket > 14) {
                         hold = false;
@@ -325,7 +338,7 @@ static void* addnullpacket (rtppacket* beg)
                     } else {
                         /* empty */
                     }
-                    if ((numofpacket > 0) && (!hold) && (osn == head->seqnum) && (oldhead != NULL)) {
+                    if ((numofpacket > 0) && (osn == head->seqnum) && (oldhead != NULL)) {
                         oldhead->next = head;
                     }
                     while ((numofpacket > 0) && (!hold)) {
@@ -419,9 +432,11 @@ static int video_decode_test (rtppacket* beg)
             while (true) {
                 int non = atomic_load (&numofnode);
                 if (non < 2) {
+		    /* need at least two nodes, so one can be consumed */
                     usleep (10);
                 } else {
-                    for (int i = 0; i < get_numofts(scan->recvlen); i++) {
+		    /* consume one node */
+                    for (int i = 0; i < get_numofts(scan); i++) {
                         unsigned char* buffer = scan->buf + 12u + (unsigned int)i * 188u;
                         unsigned char sync = buffer[0];
                         int ad = extract_ad(buffer);
@@ -442,11 +457,11 @@ static int video_decode_test (rtppacket* beg)
                                         if (peserror == 0) {
                                             (void)sendtodecoder (list[0], list[3], list[1], tunnel, &buf, &beg, scan, &port_settings_changed, &first);
                                         } else {
+                                            first = 1;
+                                            peserror = 0;
                                             while (beg != scan) {
                                                 advance_packet (&beg);
                                             }
-                                            first = 1;
-                                            peserror = 0;
                                         }
                                     }
                                 }
@@ -464,6 +479,7 @@ static int video_decode_test (rtppacket* beg)
                             }
                         }
                     }
+		    /* reduce node number by one, advance scan by one */
                     atomic_fetch_sub (&numofnode, 1);
                     scan = scan->next;
                 }
