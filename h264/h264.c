@@ -83,6 +83,15 @@ __attribute__ ((always_inline)) static inline void advance_packet (rtppacket** b
 }
 
 
+__attribute__ ((always_inline)) static inline rtppacket* allocate_new_packet (void);
+__attribute__ ((always_inline)) static inline rtppacket* allocate_new_packet (void) {
+    rtppacket* p1 = (rtppacket*)malloc (sizeof (rtppacket));
+    p1->next = NULL;
+    p1->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
+    return p1;
+}
+
+
 __attribute__ ((always_inline)) static inline bool newpesstart (unsigned char* buffer, int shift);
 __attribute__ ((always_inline)) static inline bool newpesstart (unsigned char* buffer, int shift)
 {
@@ -139,29 +148,53 @@ __attribute__ ((always_inline)) static inline void insert_into_list (rtppacket**
     }
 }
 
+__attribute__ ((always_inline)) static inline short extract_pid (unsigned char* buffer);
+__attribute__ ((always_inline)) static inline short extract_pid (unsigned char* buffer) {
+    short pid = ((0x1Fu & buffer[1]) << 8u) + buffer[2];
+    return pid;
+}
 
-int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMPONENT_T* video_render, TUNNEL_T* tunnel,
-                   OMX_BUFFERHEADERTYPE* inbuf, rtppacket** beg, rtppacket* scan,
+__attribute__ ((always_inline)) static inline int extract_cc (unsigned char* buffer);
+__attribute__ ((always_inline)) static inline int extract_cc (unsigned char* buffer) {
+    int cc = buffer[3] & 0x0Fu;
+    return cc;
+}
+
+__attribute__ ((always_inline)) static inline int extract_ad (unsigned char* buffer);
+__attribute__ ((always_inline)) static inline int extract_ad (unsigned char* buffer) {
+    int ad = 3u & (buffer[3] >> 4u);
+    return ad;
+}
+
+__attribute__ ((always_inline)) static inline int extract_shift (unsigned char* buffer,int ad);
+__attribute__ ((always_inline)) static inline int extract_shift (unsigned char* buffer,int ad) {
+    int adlen = buffer[4];
+    int shift = (ad == 1) ? 4 : (adlen + 5);
+    return shift;
+}
+static int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMPONENT_T* video_render, TUNNEL_T* tunnel,
+                   OMX_BUFFERHEADERTYPE** buf, rtppacket** beg, rtppacket* scan,
+                   int* port_settings_changed, int* first);
+
+static int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMPONENT_T* video_render, TUNNEL_T* tunnel,
+                   OMX_BUFFERHEADERTYPE** buf, rtppacket** beg, rtppacket* scan,
                    int* port_settings_changed, int* first)
 {
-    (void)inbuf;
-
     bool loop = true;
     int theveryfirst = 1;
     while (loop) {
-        OMX_BUFFERHEADERTYPE* buf = ilclient_get_input_buffer (video_decode, 130, 1);
-        if (buf != NULL) {
-            unsigned char* dest = buf->pBuffer;
+        *buf = ilclient_get_input_buffer (video_decode, 130, 1);
+        if (*buf != NULL) {
+            unsigned char* dest = (*buf)->pBuffer;
             int data_len = 0;
             do {
                 for (int i = 0; i < get_numofts((*beg)->recvlen); i++) {
                     unsigned char* buffer = (*beg)->buf + 12u + (unsigned char)i * 188u;
-                    short pid = ((0x1Fu & buffer[1]) << 8u) + buffer[2];
+                    short pid = extract_pid(buffer);
                     if (pid == 0x1011) {
-                        int ad = 3u & (buffer[3] >> 4u);
+                        int ad = extract_ad(buffer);
                         if ((ad & 1) == 1) {
-                            int adlen = buffer[4];
-                            int shift = (ad == 1) ? 4 : (adlen + 5);
+                            int shift = extract_shift(buffer,ad);
                             if (theveryfirst != 0) {
                                 shift += 14;
                                 theveryfirst = 0;
@@ -171,11 +204,11 @@ int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMP
                         }
                     }
                 }
-                advance_packet (beg);
+                advance_packet(beg);
                 if ((*beg) == scan) {
                     loop = false;
                 }
-            } while (((*beg) != scan) && ((buf->nAllocLen - data_len) >= 1500));
+            } while (((*beg) != scan) && (((*buf)->nAllocLen - data_len) >= 1500));
             if (((*port_settings_changed) == 0) &&
                     (((data_len > 0) && ilclient_remove_event (video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1) == 0) ||
                      ((data_len == 0) && ilclient_wait_for_event (video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1,
@@ -197,17 +230,17 @@ int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMP
                 const unsigned char sidedata[14] = { 0xea, 0x00, 0x00, 0x00, 0x01, 0xce, 0x8c, 0x4d, 0x9d, 0x10, 0x8e, 0x25, 0xe9, 0xfe };
                 (void)memcpy (dest + data_len, sidedata, 14);
                 data_len += 14;
-                buf->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
+                (*buf)->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
             }
-            buf->nFilledLen = data_len;
-            buf->nOffset = 0;
+            (*buf)->nFilledLen = data_len;
+            (*buf)->nOffset = 0;
             if ((*first) != 0) {
-                buf->nFlags |= OMX_BUFFERFLAG_STARTTIME;
+                (*buf)->nFlags |= OMX_BUFFERFLAG_STARTTIME;
                 *first = 0;
             } else {
-                buf->nFlags |= OMX_BUFFERFLAG_TIME_UNKNOWN;
+                (*buf)->nFlags |= OMX_BUFFERFLAG_TIME_UNKNOWN;
             }
-            if (OMX_EmptyThisBuffer (ILC_GET_HANDLE (video_decode), buf) != OMX_ErrorNone) {
+            if (OMX_EmptyThisBuffer (ILC_GET_HANDLE (video_decode), (*buf)) != OMX_ErrorNone) {
                 return -6;
             }
         } else {
@@ -216,7 +249,6 @@ int sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMP
     }
     return 0;
 }
-
 
 static void* addnullpacket (rtppacket* beg)
 {
@@ -244,31 +276,26 @@ static void* addnullpacket (rtppacket* beg)
             }
         }
 
-
-        beg->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
         do {
             struct sockaddr_in sourceaddr;
             socklen_t addrlen = sizeof (sourceaddr);
             beg->recvlen = recvfrom (fd, beg->buf, 2048, 0, (struct sockaddr*)&sourceaddr, &addrlen);
         } while (beg->recvlen <= 0);
         beg->seqnum = (beg->buf[2] << 8) + beg->buf[3];
-        beg->next = NULL;
-
-
-        int osn = 0xFFFF & (beg->seqnum);
+        int osn = (beg->seqnum);
         bool hold = false;
         int sentseqnum = -1;
         int numofpacket = 1;
+
         rtppacket* head = beg;
         rtppacket* oldhead = NULL;
-        rtppacket* p1 = (rtppacket*)malloc (sizeof (rtppacket));
-        p1->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
+
+        rtppacket* p1 = allocate_new_packet();
 
         while (true) {
             struct sockaddr_in sourceaddr;
             socklen_t addrlen = sizeof (sourceaddr);
             p1->recvlen = recvfrom (fd, p1->buf, 2048, 0, (struct sockaddr*)&sourceaddr, &addrlen);
-            p1->next = NULL;
 
             if (p1->recvlen > 0) {
                 p1->seqnum = (p1->buf[2] << 8) + p1->buf[3];
@@ -286,9 +313,9 @@ static void* addnullpacket (rtppacket* beg)
                         hold = false;
                     } else if (numofpacket > 14) {
                         hold = false;
+                        DBG_PRINTF_TRACE ("start:%d, end:%d\n", osn, head->seqnum);
                         osn = head->seqnum;
                         sentseqnum = osn;
-                        DBG_PRINTF_TRACE ("start:%d, end:%d\n", osn, head->seqnum);
                     } else if ((idrsockport > 0) && (numofpacket == 12)) {
                         const char topython[] = "send idr";
                         if (sendto (fd2, topython, sizeof (topython), 0, (struct sockaddr*)&addr2, addrlen) < 0) {
@@ -314,8 +341,7 @@ static void* addnullpacket (rtppacket* beg)
                         }
                     }
 		    /* allocate packet for next iteration */
-                    p1 = (rtppacket*)malloc (sizeof (rtppacket));
-                    p1->buf = (unsigned char*)malloc (2048u * sizeof (unsigned char));
+		    p1 = allocate_new_packet();
                 }
 	    } else if (p1->recvlen == 0) {
 		/* do nothing */
@@ -357,7 +383,7 @@ static int video_decode_test (rtppacket* beg)
         if ((status == 0) && (ilclient_create_component (client, &list[2], "clock", ILCLIENT_DISABLE_ALL_PORTS) != 0)) {
             status = -14;
         }
-        OMX_TIME_CONFIG_CLOCKSTATETYPE cstate = {.nSize = sizeof (cstate), .nVersion.nVersion = OMX_VERSION, .eState = OMX_TIME_ClockStateWaitingForStartTime, cstate.nWaitMask = 1};
+        OMX_TIME_CONFIG_CLOCKSTATETYPE cstate = {.nSize = sizeof(cstate), .nVersion.nVersion = OMX_VERSION, .eState = OMX_TIME_ClockStateWaitingForStartTime, .nWaitMask = 1};
         if ((list[2] != NULL) && (OMX_SetParameter (ILC_GET_HANDLE (list[2]), OMX_IndexConfigTimeClockState, &cstate) != OMX_ErrorNone)) {
             status = -13;
         }
@@ -380,14 +406,9 @@ static int video_decode_test (rtppacket* beg)
         if (status == 0) {
             ilclient_change_component_state (list[0], OMX_StateIdle);
         }
-        OMX_VIDEO_PARAM_PORTFORMATTYPE format = {0};
-        format.nSize = sizeof (OMX_VIDEO_PARAM_PORTFORMATTYPE);
-        format.nVersion.nVersion = OMX_VERSION;
-        format.nPortIndex = 130;
-        format.eCompressionFormat = OMX_VIDEO_CodingAVC;
-        if ((status == 0) &&
-                (OMX_SetParameter (ILC_GET_HANDLE (list[0]), OMX_IndexParamVideoPortFormat, &format) == OMX_ErrorNone) &&
-                (ilclient_enable_port_buffers (list[0], 130, NULL, NULL, NULL) == 0)) {
+        OMX_VIDEO_PARAM_PORTFORMATTYPE format = {.nSize = sizeof (OMX_VIDEO_PARAM_PORTFORMATTYPE), .nVersion.nVersion = OMX_VERSION, .nPortIndex = 130, .eCompressionFormat = OMX_VIDEO_CodingAVC};
+
+        if ((status == 0) && (OMX_SetParameter (ILC_GET_HANDLE (list[0]), OMX_IndexParamVideoPortFormat, &format) == OMX_ErrorNone) && (ilclient_enable_port_buffers (list[0], 130, NULL, NULL, NULL) == 0)) {
             OMX_BUFFERHEADERTYPE* buf = NULL;
             int port_settings_changed = 0;
             ilclient_change_component_state (list[0], OMX_StateExecuting);
@@ -403,22 +424,23 @@ static int video_decode_test (rtppacket* beg)
                     for (int i = 0; i < get_numofts(scan->recvlen); i++) {
                         unsigned char* buffer = scan->buf + 12u + (unsigned int)i * 188u;
                         unsigned char sync = buffer[0];
+                        int ad = extract_ad(buffer);
+                        int shift = extract_shift(buffer,ad);
+                        short pid = extract_pid(buffer);
+                        int cc = extract_cc(buffer);
+
                         if (sync == 0x47u) {
-                            short pid = ((0x1Fu & buffer[1]) << 8u) + buffer[2];
                             if (pid == 0x1011) {
-                                int cc = buffer[3] & 0x0Fu;
                                 if (cc != oldcc) {
                                     DBG_PRINTF_TRACE ("oldcc %d cc %d\n", oldcc, cc);
                                     oldcc = cc;
                                     peserror = 1;
                                 }
                                 oldcc = 0xF & (oldcc + 1);
-                                int ad = 3u & (buffer[3] >> 4u);
                                 if ((ad & 1) != 0) {
-                                    int shift = (ad == 1) ? 4 : (buffer[4] + 5);
                                     if (newpesstart (buffer, shift)) {
                                         if (peserror == 0) {
-                                            (void)sendtodecoder (list[0], list[3], list[1], tunnel, buf, &beg, scan, &port_settings_changed, &first);
+                                            (void)sendtodecoder (list[0], list[3], list[1], tunnel, &buf, &beg, scan, &port_settings_changed, &first);
                                         } else {
                                             while (beg != scan) {
                                                 advance_packet (&beg);
@@ -429,9 +451,7 @@ static int video_decode_test (rtppacket* beg)
                                     }
                                 }
                             } else if (pid == 0x1100) {
-                                int ad = (3u & (buffer[3] >> 4u));
                                 if ((ad & 1) != 0) {
-                                    int shift = (ad == 1) ? 4 : (buffer[4] + 5);
                                     if (newpesstart (buffer, shift)) {
                                         shift += 20;
                                     }
@@ -489,7 +509,8 @@ int main (int argc, char** argv)
     atomic_store (&numofnode, 0);
     pthread_t npthread;
     pthread_t dthread;
-    rtppacket* beg = (rtppacket*) malloc (sizeof (rtppacket));
+    rtppacket* beg = allocate_new_packet();
+    
     bcm_host_init();
     int retval = 0;
     if (pthread_create (&npthread, NULL, addnullpacket, beg) != 0) {
