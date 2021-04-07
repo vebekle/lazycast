@@ -79,7 +79,6 @@ static bool largers (int32_t a, int32_t b)
 INLINE void advance_packet (rtppacket** beg);
 INLINE void advance_packet (rtppacket** beg)
 {
-    /* no null pointer check here !!! need to check if this always works out!!! */
     rtppacket* nexttemp = (*beg)->next;
     free ((*beg)->buf);
     free ((*beg));
@@ -89,11 +88,9 @@ INLINE void advance_packet (rtppacket** beg)
 
 INLINE rtppacket* allocate_new_packet (void);
 INLINE rtppacket* allocate_new_packet (void) {
-    rtppacket* p1 = (rtppacket*)malloc (sizeof (rtppacket));
-    p1->next = NULL;
+    rtppacket* p1 = (rtppacket*)calloc (1, sizeof (rtppacket));
     p1->buf = (uint8_t*)malloc (2048u * sizeof (uint8_t));
     p1->seqnum = -1;
-    p1->recvlen = 0;
     return p1;
 }
 
@@ -158,7 +155,7 @@ INLINE void insert_into_list (rtppacket** head, rtppacket** p1) {
 
 INLINE int16_t extract_pid (uint8_t* buffer);
 INLINE int16_t extract_pid (uint8_t* buffer) {
-    int16_t pid = ((0x1Fu & buffer[1]) << 8u) + buffer[2];
+    int16_t pid = ((((uint16_t*)(buffer+1))[0]) & 0xFF1Fu);
     return pid;
 }
 
@@ -202,7 +199,6 @@ static int32_t sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_sche
 {
     bool loop = true;
     int32_t retval = 0;
-    int32_t theveryfirst = 1;
     while (loop) {
         *buf = ilclient_get_input_buffer (video_decode, 130, 1);
         if (*buf != NULL) {
@@ -212,25 +208,24 @@ static int32_t sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_sche
                 uint8_t* buffer = (*beg)->buf + 12u;
                 for (int32_t i = 0; i < get_numofts((*beg)); i++) {
 
-                    int16_t pid = extract_pid(buffer);
+                    int32_t pid = extract_pid(buffer);
                     int32_t ad = extract_ad(buffer);
-                    int32_t shift = extract_shift(buffer,ad) + theveryfirst*14;
-                    if (pid == 0x1011) {
-                        if ((ad & 1) == 1) {
-                            theveryfirst = 0;
-			    uint32_t bytes_to_copy = 188 - shift;
-                            (void)memcpy (dest + data_len, buffer + shift, bytes_to_copy);
-                            data_len += bytes_to_copy;
-                        }
+                    int32_t shift = extract_shift(buffer,ad);
+		    uint32_t bytes_to_copy = 188 - shift;
+		    buffer += shift;
+                    if ((pid == 0x1110) && ((ad & 1) == 1)) {
+                        (void)memcpy (dest, buffer, bytes_to_copy);
+			dest += bytes_to_copy;
+                        data_len += bytes_to_copy;
                     }
 
-	       	    buffer += 188u;
+	       	    buffer += bytes_to_copy;
                 }
                 advance_packet(beg);
                 if ((*beg) == scan) {
                     loop = false;
                 }
-            } while (((*beg) != scan) && (((*buf)->nAllocLen - data_len) >= 1500));
+            } while ((loop) && (((*buf)->nAllocLen - data_len) >= 1500));
             if (((*port_settings_changed) == 0) &&
                     (((data_len > 0) && ilclient_remove_event (video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1) == 0) ||
                      ((data_len == 0) && ilclient_wait_for_event (video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1, ILCLIENT_EVENT_ERROR | ILCLIENT_PARAMETER_CHANGED, 10000) == 0))) {
@@ -252,7 +247,8 @@ static int32_t sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_sche
 
             if (!loop) {
                 const uint8_t sidedata[14] = { 0xea, 0x00, 0x00, 0x00, 0x01, 0xce, 0x8c, 0x4d, 0x9d, 0x10, 0x8e, 0x25, 0xe9, 0xfe };
-                (void)memcpy (dest + data_len, sidedata, 14);
+                (void)memcpy (dest, sidedata, 14);
+		dest += 14;
                 data_len += 14;
                 (*buf)->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
             }
@@ -440,10 +436,10 @@ static int32_t video_decode_test (rtppacket* beg)
                         if (buffer[0] == 0x47u) {
                             int32_t ad = extract_ad(buffer);
                             int32_t shift = extract_shift(buffer,ad);
-                            int16_t pid = extract_pid(buffer);
+                            int32_t pid = extract_pid(buffer);
                             int32_t cc = extract_cc(buffer);
 
-                            if (pid == 0x1011) {
+                            if (pid == 0x1110) {
                                 if (cc != oldcc) {
                                     DBG_PRINTF_TRACE ("oldcc %d cc %d\n", oldcc, cc);
                                     peserror = 1;
@@ -456,14 +452,15 @@ static int32_t video_decode_test (rtppacket* beg)
                                             (void)sendtodecoder (list[0], list[3], list[1], tunnel, &buf, &beg, scan, &port_settings_changed, &first);
                                         } else {
                                             first = 1;
-                                            peserror = 0;
                                             while (beg != scan) {
                                                 advance_packet (&beg);
                                             }
                                         }
+                                        peserror = 0;
                                     }
                                 }
-                            } else if (pid == 0x1100) {
+                            }
+			    if (pid == 0x0011) {
                                 if ((ad & 1) != 0) {
                                     if (newpesstart (buffer, shift)) {
                                         shift += 20;
@@ -472,8 +469,6 @@ static int32_t video_decode_test (rtppacket* beg)
                                         DBG_PRINTF_ERROR ("sound error\n");
                                     }
                                 }
-                            } else {
-                                /* empty */
                             }
                         }
                         buffer += 188u;
