@@ -110,13 +110,13 @@ INLINE void create_new_audio_renderer (COMPONENT_T** audio_render, ILCLIENT_T* c
     if (audioplay_create (client, audio_render, list, 4) != 0) {
         DBG_PRINTF_ERROR ("create error\n");
     }
-    if (audiodest == 0) {
+    /*if (audiodest == 0) {*/
         (void)audioplay_set_dest (*audio_render, "hdmi");
-    } else if (audiodest == 1) {
+    /*} else if (audiodest == 1) {
         (void)audioplay_set_dest (*audio_render, "local");
     } else {
         (void)audioplay_set_dest (*audio_render, "alsa");
-    }
+    }*/
 }
 
 

@@ -85,14 +85,14 @@ int32_t audioplay_delete (COMPONENT_T* audio_render)
 int32_t audioplay_play_buffer (COMPONENT_T* audio_render, uint8_t* buffer, uint32_t length)
 {
     int32_t ret = 0;
-    if (is_alsa) {
+    /*if (is_alsa) {
         int pcmreturn = snd_pcm_writei (pcm_dev, buffer, length >> 2);
         while ( pcmreturn < 0) {
             snd_pcm_prepare (pcm_dev);
             DBG_PRINTF_DEBUG ("--:%u----\n", length);
             pcmreturn = snd_pcm_writei (pcm_dev, buffer, length >> 2);
         }
-    } else {
+    } else {*/
         OMX_BUFFERHEADERTYPE* hdr = ilclient_get_input_buffer (audio_render, 100, 0);
         if (hdr == NULL) {
             ret = -1;
@@ -104,7 +104,7 @@ int32_t audioplay_play_buffer (COMPONENT_T* audio_render, uint8_t* buffer, uint3
             error = OMX_EmptyThisBuffer (ILC_GET_HANDLE (audio_render), hdr);
             assert (error == OMX_ErrorNone);
 	}
-    }
+    /*}*/
     return ret;
 }
 
@@ -112,12 +112,13 @@ int32_t audioplay_set_dest (COMPONENT_T* audio_render, const char* name)
 {
     int32_t success = -1;
     OMX_CONFIG_BRCMAUDIODESTINATIONTYPE ar_dest;
-    if (name && strlen (name) < sizeof (ar_dest.sName)) {
+    /*if (name && strlen (name) < sizeof (ar_dest.sName)) {
         DBG_PRINTF_DEBUG ("set audio backend :%s\n", name);
         if (strcmp (name, "alsa") == 0) {
             is_alsa = true;
             (void)audioplay_alsapcm_init();
         } else {
+	*/
             is_alsa = false;
             OMX_ERRORTYPE error;
             (void)memset (&ar_dest, 0, sizeof (ar_dest));
@@ -126,9 +127,9 @@ int32_t audioplay_set_dest (COMPONENT_T* audio_render, const char* name)
             (void)strcpy ((char*)ar_dest.sName, name);
             error = OMX_SetConfig (ILC_GET_HANDLE (audio_render), OMX_IndexConfigBrcmAudioDestination, &ar_dest);
             assert (error == OMX_ErrorNone);
-        }
+    /*    }*/
         success = 0;
-    }
+    /*}*/
     return success;
 }
 
