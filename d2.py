@@ -247,35 +247,10 @@ if not runonpi:
 
 def launchplayer(player_select):
 	killall(False)
-        if display_power_management == 1:
-                os.system('vcgencmd display_power 1')
-	if player_select == 0:
-		# os.system('gst-launch-1.0 -v udpsrc port=1028 ! application/x-rtp,media=video,encoding-name=H264 ! queue ! rtph264depay ! avdec_h264 ! autovideosink &')
-		# os.system('gst-launch-1.0 -v udpsrc port=1028 ! video/mpegts ! tsdemux !  h264parse ! queue ! avdec_h264 ! ximagesink sync=false &')
-		# os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:1028/wfd1.0/streamid=0  video-sink=ximagesink audio-sink=alsasink sync=false &')
-		# os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:1028/wfd1.0/streamid=0  video-sink=xvimagesink audio-sink=alsasink sync=false &')
-		if False: # Change False to True if you want to use gstreamer
-			os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:1028/wfd1.0/streamid=0  video-sink=autovideosink audio-sink=alsasink sync=false &')
-		else:
-			os.system('vlc --fullscreen rtp://0.0.0.0:1028/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=300 --no-mouse-events & ')
-	elif player_select == 1:
-		os.system('./player/player.bin '+str(idrsockport)+' '+str(sound_output_select)+' &')
-	elif player_select == 2:
-		sinkip = sock.getsockname()[0]
-		print sinkip
-		print('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
-		os.system('sudo nice --18 ./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' 2>&1 | tee -a h264.log &')
-	elif player_select == 3:
-		#if 'MSMiracastSource' in m2data:
-		#	os.system('omxplayer rtp://0.0.0.0:1028 -n -1 --live &') # For Windows 10 when no sound is playing
-		#else:
-		#	os.system('omxplayer rtp://0.0.0.0:1028 --live &')
-		#os.system('omxplayer rtp://0.0.0.0:1028 -i')
-		omxplayerinfo = subprocess.Popen('omxplayer rtp://0.0.0.0:1028 -i'.split(),stderr=subprocess.PIPE).communicate()
-		if '0 channels' in omxplayerinfo[1]:
-			os.system('omxplayer rtp://0.0.0.0:1028 -n -1 --live &') # For Windows 10 when no sound is playing
-		else:
-			os.system('omxplayer rtp://0.0.0.0:1028 --live &')
+	sinkip = sock.getsockname()[0]
+	#print sinkip
+	#print('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
+	os.system('sudo nice --18 ./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
 
 launchplayer(player_select)
 
@@ -296,7 +271,7 @@ while True:
 				err = e.args[0]
 				if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
 					processrunning = os.popen('ps au').read()
-					if player_select == 2 and 'h264.bin' not in processrunning:
+					if 'h264.bin' not in processrunning:
 						launchplayer(player_select)						
 						sleep(0.01)
 					else:
