@@ -73,7 +73,7 @@ static bool largers (int32_t a, int32_t b)
     return ret;
 }
 
-#define INLINE __attribute__((always_inline)) static inline
+#define INLINE static inline
 #define STATIC static
 
 INLINE void advance_packet (rtppacket** beg);
