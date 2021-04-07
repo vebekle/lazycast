@@ -48,7 +48,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "debug_print.h"
 
 typedef struct srtppacket {
-    uint8_t* buf;
+    uint8_t buf[2048];
     int32_t recvlen;
     int32_t seqnum;
     struct srtppacket* next;
@@ -80,7 +80,6 @@ INLINE void advance_packet (rtppacket** beg);
 INLINE void advance_packet (rtppacket** beg)
 {
     rtppacket* nexttemp = (*beg)->next;
-    free ((*beg)->buf);
     free ((*beg));
     (*beg) = nexttemp;
 }
@@ -89,7 +88,6 @@ INLINE void advance_packet (rtppacket** beg)
 INLINE rtppacket* allocate_new_packet (void);
 INLINE rtppacket* allocate_new_packet (void) {
     rtppacket* p1 = (rtppacket*)calloc (1, sizeof (rtppacket));
-    p1->buf = (uint8_t*)malloc (2048u * sizeof (uint8_t));
     p1->seqnum = -1;
     return p1;
 }
