@@ -187,18 +187,13 @@ INLINE void receive_data (rtppacket* p1, int32_t fd) {
 }
 
 
-static int32_t sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMPONENT_T* video_render, TUNNEL_T* tunnel,
-                   OMX_BUFFERHEADERTYPE** buf, rtppacket** beg, rtppacket* scan,
-                   int* port_settings_changed, int* first);
+static void sendtodecoder (COMPONENT_T** list, TUNNEL_T* tunnel, OMX_BUFFERHEADERTYPE** buf, rtppacket** beg, rtppacket* scan, int* port_settings_changed, int* first);
 
-static int32_t sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_scheduler, COMPONENT_T* video_render, TUNNEL_T* tunnel,
-                   OMX_BUFFERHEADERTYPE** buf, rtppacket** beg, rtppacket* scan,
-                   int* port_settings_changed, int* first)
+static void sendtodecoder (COMPONENT_T** list, TUNNEL_T* tunnel, OMX_BUFFERHEADERTYPE** buf, rtppacket** beg, rtppacket* scan, int* port_settings_changed, int* first)
 {
     bool loop = true;
-    int32_t retval = 0;
     while (loop) {
-        *buf = ilclient_get_input_buffer (video_decode, 130, 1);
+        *buf = ilclient_get_input_buffer (list[0], 130, 1);
         if (*buf != NULL) {
             uint8_t* dest = (*buf)->pBuffer;
             int32_t data_len = 0;
@@ -225,19 +220,19 @@ static int32_t sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_sche
                 }
             } while ((loop) && (((*buf)->nAllocLen - data_len) >= 1500));
             if (((*port_settings_changed) == 0) &&
-                    (((data_len > 0) && ilclient_remove_event (video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1) == 0) ||
-                     ((data_len == 0) && ilclient_wait_for_event (video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1, ILCLIENT_EVENT_ERROR | ILCLIENT_PARAMETER_CHANGED, 10000) == 0))) {
+                    (((data_len > 0) && ilclient_remove_event (list[0], OMX_EventPortSettingsChanged, 131, 0, 0, 1) == 0) ||
+                     ((data_len == 0) && ilclient_wait_for_event (list[0], OMX_EventPortSettingsChanged, 131, 0, 0, 1, ILCLIENT_EVENT_ERROR | ILCLIENT_PARAMETER_CHANGED, 10000) == 0))) {
                 *port_settings_changed = 1;
                 if (ilclient_setup_tunnel (tunnel, 0, 0) == 0) {
-                    ilclient_change_component_state (video_scheduler, OMX_StateExecuting);
+                    ilclient_change_component_state (list[3], OMX_StateExecuting);
                     // now setup tunnel to video_render
                     if (ilclient_setup_tunnel (tunnel + 1, 0, 1000) == 0) {
-                        ilclient_change_component_state (video_render, OMX_StateExecuting);
+                        ilclient_change_component_state (list[1], OMX_StateExecuting);
                     } else {
-                        return -12;
+                        return;
                     }
                 } else {
-                    return -7;
+                    return;
                 }
             }
             (*buf)->nFilledLen = data_len;
@@ -256,15 +251,14 @@ static int32_t sendtodecoder (COMPONENT_T* video_decode, COMPONENT_T* video_sche
             } else {
                 (*buf)->nFlags |= OMX_BUFFERFLAG_TIME_UNKNOWN;
             }
-            if (OMX_EmptyThisBuffer (ILC_GET_HANDLE (video_decode), (*buf)) != OMX_ErrorNone) {
-                retval = -6;
+            if (OMX_EmptyThisBuffer (ILC_GET_HANDLE (list[0]), (*buf)) != OMX_ErrorNone) {
 		loop = false;
             }
         } else {
             loop = false;
         }
     }
-    return retval;
+    return;
 }
 
 static void* addnullpacket (rtppacket* beg)
@@ -447,7 +441,7 @@ static int32_t video_decode_test (rtppacket* beg)
                                 if ((ad & 1) != 0) {
                                     if (newpesstart (buffer, shift)) {
                                         if (peserror == 0) {
-                                            (void)sendtodecoder (list[0], list[3], list[1], tunnel, &buf, &beg, scan, &port_settings_changed, &first);
+                                            sendtodecoder (list, tunnel, &buf, &beg, scan, &port_settings_changed, &first);
                                         } else {
                                             first = 1;
                                             while (beg != scan) {
