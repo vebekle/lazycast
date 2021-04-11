@@ -188,14 +188,8 @@ class P2P_Group_Add (threading.Thread):
 		gobject.threads_init()
 		gobject.MainLoop().run()
 
-
-
-		
-
-
-
 if __name__ == "__main__":
-
+        #os.system("./removep2p.sh")
 	try:
 		p2p_group_add_test = P2P_Group_Add('wlan0','fi.w1.wpa_supplicant1')
 	except:
@@ -203,8 +197,6 @@ if __name__ == "__main__":
 
 	p2p_group_add_test.setarguments()
 	p2p_group_add_test.start()
-
-
 	event.wait()
 
 	if concurrent == 1:
