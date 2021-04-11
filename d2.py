@@ -40,6 +40,131 @@ enable_mouse_keyboard = 0
 display_power_management = 0
 # 1: (For projectors) Put the display in sleep mode when not in use by lazycast 
 
+res_cea_640_480p60   = 1
+res_cea_720_480p60   = 1
+res_cea_720_480i60   = 1
+res_cea_720_576p50   = 1
+res_cea_720_576i50   = 1
+res_cea_1280_720p30  = 1
+res_cea_1280_720p60  = 1
+res_cea_1920_1080p30 = 1
+res_cea_1920_1080p60 = 0 ####
+res_cea_1920_1080i60 = 0
+res_cea_1280_720p25  = 1
+res_cea_1280_720p50  = 1
+res_cea_1920_1080p25 = 1
+res_cea_1920_1080p50 = 0
+res_cea_1920_1080i50 = 0
+res_cea_1280_720p24  = 1
+res_cea_1920_1080p24 = 1
+
+res_vesa_800_600p30   = 0
+res_vesa_800_600p60   = 0
+res_vesa_1024_768p30  = 0
+res_vesa_1024_768p60  = 0
+res_vesa_1152_854p30  = 0
+res_vesa_1152_854p60  = 0
+res_vesa_1280_768p30  = 0
+res_vesa_1280_768p60  = 0
+res_vesa_1280_800p30  = 0
+res_vesa_1280_800p60  = 0
+res_vesa_1360_768p30  = 0
+res_vesa_1360_768p60  = 0
+res_vesa_1366_768p30  = 0
+res_vesa_1366_768p60  = 0
+res_vesa_1280_1024p30 = 0
+res_vesa_1280_1024p60 = 0
+res_vesa_1440_1050p30 = 0
+res_vesa_1440_1050p60 = 0
+res_vesa_1440_900p30  = 0
+res_vesa_1440_900p60  = 0
+res_vesa_1600_900p30  = 0
+res_vesa_1600_900p60  = 0
+res_vesa_1600_1200p30 = 0
+res_vesa_1600_1200p60 = 0
+res_vesa_1680_1024p30 = 0
+res_vesa_1680_1024p60 = 0
+res_vesa_1680_1050p30 = 0
+res_vesa_1680_1050p60 = 0
+res_vesa_1920_1200p30 = 0
+
+res_hh_800_480p30 = 0
+res_hh_800_480p60 = 0
+res_hh_854_480p30 = 0
+res_hh_854_480p60 = 0
+res_hh_864_480p30 = 0
+res_hh_864_480p60 = 0
+res_hh_640_360p30 = 0
+res_hh_640_360p60 = 0
+res_hh_960_540p30 = 0
+res_hh_960_540p60 = 0
+res_hh_848_480p30 = 0
+res_hh_848_480p60 = 0
+
+res_cea = 0
+res_cea = (res_cea<<1) + res_cea_1920_1080p24
+res_cea = (res_cea<<1) + res_cea_1280_720p24
+res_cea = (res_cea<<1) + res_cea_1920_1080i50
+res_cea = (res_cea<<1) + res_cea_1920_1080p50
+res_cea = (res_cea<<1) + res_cea_1920_1080p25
+res_cea = (res_cea<<1) + res_cea_1280_720p50
+res_cea = (res_cea<<1) + res_cea_1280_720p25
+res_cea = (res_cea<<1) + res_cea_1920_1080i60
+res_cea = (res_cea<<1) + res_cea_1920_1080p60
+res_cea = (res_cea<<1) + res_cea_1920_1080p30
+res_cea = (res_cea<<1) + res_cea_1280_720p60
+res_cea = (res_cea<<1) + res_cea_1280_720p30
+res_cea = (res_cea<<1) + res_cea_720_576i50
+res_cea = (res_cea<<1) + res_cea_720_576p50
+res_cea = (res_cea<<1) + res_cea_720_480i60
+res_cea = (res_cea<<1) + res_cea_720_480p60
+res_cea = (res_cea<<1) + res_cea_640_480p60
+
+res_vesa = 0
+res_vesa = (res_vesa<<1) + res_vesa_1920_1200p30
+res_vesa = (res_vesa<<1) + res_vesa_1680_1050p60
+res_vesa = (res_vesa<<1) + res_vesa_1680_1050p30
+res_vesa = (res_vesa<<1) + res_vesa_1680_1024p60
+res_vesa = (res_vesa<<1) + res_vesa_1680_1024p30
+res_vesa = (res_vesa<<1) + res_vesa_1600_1200p60
+res_vesa = (res_vesa<<1) + res_vesa_1600_1200p30
+res_vesa = (res_vesa<<1) + res_vesa_1600_900p60
+res_vesa = (res_vesa<<1) + res_vesa_1600_900p30
+res_vesa = (res_vesa<<1) + res_vesa_1440_900p60
+res_vesa = (res_vesa<<1) + res_vesa_1440_900p30
+res_vesa = (res_vesa<<1) + res_vesa_1440_1050p60
+res_vesa = (res_vesa<<1) + res_vesa_1440_1050p30
+res_vesa = (res_vesa<<1) + res_vesa_1280_1024p60
+res_vesa = (res_vesa<<1) + res_vesa_1280_1024p30
+res_vesa = (res_vesa<<1) + res_vesa_1366_768p60
+res_vesa = (res_vesa<<1) + res_vesa_1366_768p30
+res_vesa = (res_vesa<<1) + res_vesa_1360_768p60
+res_vesa = (res_vesa<<1) + res_vesa_1360_768p30
+res_vesa = (res_vesa<<1) + res_vesa_1280_800p60
+res_vesa = (res_vesa<<1) + res_vesa_1280_800p30
+res_vesa = (res_vesa<<1) + res_vesa_1280_768p60
+res_vesa = (res_vesa<<1) + res_vesa_1280_768p30
+res_vesa = (res_vesa<<1) + res_vesa_1152_854p60
+res_vesa = (res_vesa<<1) + res_vesa_1152_854p30
+res_vesa = (res_vesa<<1) + res_vesa_1024_768p60
+res_vesa = (res_vesa<<1) + res_vesa_1024_768p30
+res_vesa = (res_vesa<<1) + res_vesa_800_600p60
+res_vesa = (res_vesa<<1) + res_vesa_800_600p30
+
+res_hh = 0
+res_hh = (res_hh<<1) + res_hh_848_480p60
+res_hh = (res_hh<<1) + res_hh_848_480p30
+res_hh = (res_hh<<1) + res_hh_960_540p60
+res_hh = (res_hh<<1) + res_hh_960_540p30
+res_hh = (res_hh<<1) + res_hh_640_360p60
+res_hh = (res_hh<<1) + res_hh_640_360p30
+res_hh = (res_hh<<1) + res_hh_864_480p60
+res_hh = (res_hh<<1) + res_hh_864_480p30
+res_hh = (res_hh<<1) + res_hh_854_480p60
+res_hh = (res_hh<<1) + res_hh_854_480p30
+res_hh = (res_hh<<1) + res_hh_800_480p60
+res_hh = (res_hh<<1) + res_hh_800_480p30
+
 ####################################################
 
 parser = argparse.ArgumentParser()
@@ -102,11 +227,8 @@ if player_select == 2:
 else:
 	msg = msg + 'wfd_audio_codecs: AAC 00000001 00\r\n'
 
-if disable_1920_1080_60fps == 1:
-	msg = msg + 'wfd_video_formats: 00 00 02 10 0001FEFF 3FFFFFFF 00000FFF 00 0000 0000 00 none none\r\n'
-else:
-	msg = msg + 'wfd_video_formats: 00 00 02 10 0001FFFF 3FFFFFFF 00000FFF 00 0000 0000 00 none none\r\n'
-
+msg = msg + str('wfd_video_formats: 00 00 02 10 %08X %08X %08X 00 0000 0000 00 none none\r\n' % (res_cea,res_vesa,res_hh))
+        
 msg = msg +'wfd_3d_video_formats: none\r\n'\
 	+'wfd_coupled_sink: none\r\n'\
 	+'wfd_connector_type: 05\r\n'\
@@ -176,8 +298,8 @@ def uibcstart(sock, data):
 			uibcport = uibcport[1]
 			print 'uibcport:'+uibcport+"\n"
 			if 'none' not in uibcport and enable_mouse_keyboard == 1:
-				os.system('pkill control.bin')
-				os.system('pkill controlhidc.bin')
+				os.system('sudo pkill control.bin')
+				os.system('sudo pkill controlhidc.bin')
 				if('hidc_cap_list=none' not in entry):
 					os.system('./control/controlhidc.bin '+ uibcport + ' ' + sourceip + ' &')
 				elif('generic_cap_list=none' not in entry):
@@ -186,16 +308,16 @@ def uibcstart(sock, data):
 uibcstart(sock,data)
 
 def killall(control):
-        os.system('pkill vlc')
-        os.system('pkill cvlc')
-        os.system('pkill gst-launch-1.0')
-        os.system('pkill player.bin')
-        os.system('pkill h264.bin')
+        os.system('sudo pkill vlc')
+        os.system('sudo pkill cvlc')
+        os.system('sudo pkill gst-launch-1.0')
+        os.system('sudo pkill player.bin')
+        os.system('sudo pkill h264.bin')
         if display_power_management == 1:
                 os.system('vcgencmd display_power 0')
         if control:
-                os.system('pkill control.bin')
-                os.system('pkill controlhidc.bin')
+                os.system('sudo pkill control.bin')
+                os.system('sudo pkill controlhidc.bin')
 
 # M5
 data=(sock.recv(1000))
