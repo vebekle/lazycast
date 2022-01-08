@@ -189,7 +189,8 @@ class P2P_Group_Add (threading.Thread):
 		gobject.MainLoop().run()
 
 if __name__ == "__main__":
-        #os.system("./removep2p.sh")
+        os.system("./removep2p.sh")
+        sleep(10)
 	try:
 		p2p_group_add_test = P2P_Group_Add('wlan0','fi.w1.wpa_supplicant1')
 	except:
