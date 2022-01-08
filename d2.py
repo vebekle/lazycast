@@ -1,8 +1,8 @@
 #!/usr/bin/env python2
 
 """
-	This software is part of lazycast, a simple wireless display receiver for Raspberry Pi
-	Copyright (C) 2018 Hsun-Wei Cho
+  This software is part of lazycast, a simple wireless display receiver for Raspberry Pi
+  Copyright (C) 2018 Hsun-Wei Cho
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -179,15 +179,15 @@ sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 connectcounter = 0
 while True: 
-	try:
-		sock.connect(server_address)
-	except socket.error, e:
-		#connectcounter = connectcounter + 1
-		#if connectcounter == 3:
-		sock.close()
-		sys.exit(1)
-	else:
-		break
+  try:
+    sock.connect(server_address)
+  except socket.error, e:
+    #connectcounter = connectcounter + 1
+    #if connectcounter == 3:
+    sock.close()
+    sys.exit(1)
+  else:
+    break
 
 cpuinfo = os.popen('grep Hardware /proc/cpuinfo')
 cpustr = cpuinfo.read()
@@ -223,51 +223,51 @@ print "---M3--->\n" + data
 
 msg = 'wfd_client_rtp_ports: RTP/AVP/UDP;unicast 1028 0 mode=play\r\n'
 if player_select == 2:
-	msg = msg + 'wfd_audio_codecs: LPCM 00000002 00\r\n'
+  msg = msg + 'wfd_audio_codecs: LPCM 00000002 00\r\n'
 else:
-	msg = msg + 'wfd_audio_codecs: AAC 00000001 00\r\n'
+  msg = msg + 'wfd_audio_codecs: AAC 00000001 00\r\n'
 
 msg = msg + str('wfd_video_formats: 00 00 02 10 %08X %08X %08X 00 0000 0000 00 none none\r\n' % (res_cea,res_vesa,res_hh))
         
 msg = msg +'wfd_3d_video_formats: none\r\n'\
-	+'wfd_coupled_sink: none\r\n'\
-	+'wfd_connector_type: 05\r\n'\
-	+'wfd_uibc_capability: input_category_list=GENERIC, HIDC;generic_cap_list=Keyboard, Mouse;hidc_cap_list=Keyboard/USB, Mouse/USB;port=none\r\n'\
-	+'wfd_standby_resume_capability: none\r\n'\
-	+'wfd_content_protection: none\r\n'
+  +'wfd_coupled_sink: none\r\n'\
+  +'wfd_connector_type: 05\r\n'\
+  +'wfd_uibc_capability: input_category_list=GENERIC, HIDC;generic_cap_list=Keyboard, Mouse;hidc_cap_list=Keyboard/USB, Mouse/USB;port=none\r\n'\
+  +'wfd_standby_resume_capability: none\r\n'\
+  +'wfd_content_protection: none\r\n'
 
 
 if runonpi and not os.path.exists('edid.txt'):
-		os.system('tvservice -d edid.txt')
+    os.system('tvservice -d edid.txt')
 
 edidlen = 0
 if os.path.exists('edid.txt'):
-	edidfile = open('edid.txt','r')
-	lines = edidfile.readlines()
-	edidfile.close()
-	edidstr =''
-	for line in lines:
-		edidstr = edidstr + line
-	edidlen = len(edidstr)
+  edidfile = open('edid.txt','r')
+  lines = edidfile.readlines()
+  edidfile.close()
+  edidstr =''
+  for line in lines:
+    edidstr = edidstr + line
+  edidlen = len(edidstr)
 
 if 'wfd_display_edid' in data and edidlen != 0:
-	msg = msg + 'wfd_display_edid: ' + '{:04X}'.format(edidlen/256 + 1) + ' ' + str(edidstr.encode('hex'))+'\r\n'
+  msg = msg + 'wfd_display_edid: ' + '{:04X}'.format(edidlen/256 + 1) + ' ' + str(edidstr.encode('hex'))+'\r\n'
 
 # if 'microsoft_latency_management_capability' in data:
-# 	msg = msg + 'microsoft-latency-management-capability: supported\r\n'
+#   msg = msg + 'microsoft-latency-management-capability: supported\r\n'
 # if 'microsoft_format_change_capability' in data:
-# 	msg = msg + 'microsoft_format_change_capability: supported\r\n'
+#   msg = msg + 'microsoft_format_change_capability: supported\r\n'
 
 if 'intel_friendly_name' in data:
-	msg = msg + 'intel_friendly_name: raspberrypi\r\n'
+  msg = msg + 'intel_friendly_name: raspberrypi\r\n'
 if 'intel_sink_manufacturer_name' in data:
-	msg = msg + 'intel_sink_manufacturer_name: lazycast\r\n'
+  msg = msg + 'intel_sink_manufacturer_name: lazycast\r\n'
 if 'intel_sink_model_name' in data:
-	msg = msg + 'intel_sink_model_name: lazycast\r\n'
+  msg = msg + 'intel_sink_model_name: lazycast\r\n'
 if 'intel_sink_version' in data:
-	msg = msg + 'intel_sink_version: 20.4.26\r\n'
+  msg = msg + 'intel_sink_version: 20.4.26\r\n'
 if 'intel_sink_device_URL' in data:
-	msg = msg + 'intel_sink_device_URL: https://github.com/homeworkc/lazycast\r\n'
+  msg = msg + 'intel_sink_device_URL: https://github.com/homeworkc/lazycast\r\n'
 
 
 
@@ -286,24 +286,24 @@ print "<--------\n" + s_data
 sock.sendall(s_data)
 
 def uibcstart(sock, data):
-	#print data
-	messagelist=data.split('\r\n\r\n')
-	for entry in messagelist:
-		if 'wfd_uibc_capability:' in entry:
-			entrylist = entry.split(';')
-			uibcport = entrylist[-1]
-			uibcport = uibcport.split('\r')
-			uibcport = uibcport[0]
-			uibcport = uibcport.split('=')
-			uibcport = uibcport[1]
-			print 'uibcport:'+uibcport+"\n"
-			if 'none' not in uibcport and enable_mouse_keyboard == 1:
-				os.system('sudo pkill control.bin')
-				os.system('sudo pkill controlhidc.bin')
-				if('hidc_cap_list=none' not in entry):
-					os.system('./control/controlhidc.bin '+ uibcport + ' ' + sourceip + ' &')
-				elif('generic_cap_list=none' not in entry):
-					os.system('./control/control.bin '+ uibcport + ' &')
+  #print data
+  messagelist=data.split('\r\n\r\n')
+  for entry in messagelist:
+    if 'wfd_uibc_capability:' in entry:
+      entrylist = entry.split(';')
+      uibcport = entrylist[-1]
+      uibcport = uibcport.split('\r')
+      uibcport = uibcport[0]
+      uibcport = uibcport.split('=')
+      uibcport = uibcport[1]
+      print 'uibcport:'+uibcport+"\n"
+      if 'none' not in uibcport and enable_mouse_keyboard == 1:
+        os.system('sudo pkill control.bin')
+        os.system('sudo pkill controlhidc.bin')
+        if('hidc_cap_list=none' not in entry):
+          os.system('./control/controlhidc.bin '+ uibcport + ' ' + sourceip + ' &')
+        elif('generic_cap_list=none' not in entry):
+          os.system('./control/control.bin '+ uibcport + ' &')
 
 uibcstart(sock,data)
 
@@ -365,14 +365,14 @@ print "---- Negotiation successful ----"
 
 
 if not runonpi:
-	player_select = 0
+  player_select = 0
 
 def launchplayer(player_select):
-	killall(False)
-	sinkip = sock.getsockname()[0]
-	#print sinkip
-	#print('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
-	os.system('sudo nice --18 ./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
+  killall(False)
+  sinkip = sock.getsockname()[0]
+  #print sinkip
+  #print('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
+  os.system('sudo nice --18 ./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
 
 launchplayer(player_select)
 
@@ -382,73 +382,73 @@ fcntl.fcntl(idrsock, fcntl.F_SETFL, os.O_NONBLOCK)
 csnum = 102
 watchdog = 0
 while True:
-	try:
-		data = (sock.recv(1000))
-	except socket.error, e:
-		err = e.args[0]
-		if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
-			try:
-				datafromc = idrsock.recv(1000)
-			except socket.error, e:
-				err = e.args[0]
-				if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
-					processrunning = os.popen('ps au').read()
-					if 'h264.bin' not in processrunning:
-						launchplayer(player_select)						
-						sleep(0.01)
-					else:
-						watchdog = watchdog + 1
-						if watchdog == 70/0.01:
-							killall(True)
-							sleep(1)
-							break
-				else:
-					sys.exit(1)
-			else:
-				print datafromc
-				elemfromc = datafromc.split(' ')				
-				if elemfromc[0] == 'recv':
-					killall(True)
-					sleep(1)
-					break
-				else:
-					csnum = csnum + 1
-					msg = 'wfd_idr_request\r\n'
-					idrreq ='SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n'\
-					+'Content-Length: '+str(len(msg))+'\r\n'\
-					+'Content-Type: text/parameters\r\n'\
-					+'CSeq: '+str(csnum)+'\r\n\r\n'\
-					+msg
-	
-					print idrreq
-					sock.sendall(idrreq)
+  try:
+    data = (sock.recv(1000))
+  except socket.error, e:
+    err = e.args[0]
+    if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
+      try:
+        datafromc = idrsock.recv(1000)
+      except socket.error, e:
+        err = e.args[0]
+        if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
+          processrunning = os.popen('ps au').read()
+          if 'h264.bin' not in processrunning:
+            launchplayer(player_select)            
+            sleep(0.01)
+          else:
+            watchdog = watchdog + 1
+            if watchdog == 70/0.01:
+              killall(True)
+              sleep(1)
+              break
+        else:
+          sys.exit(1)
+      else:
+        print datafromc
+        elemfromc = datafromc.split(' ')        
+        if elemfromc[0] == 'recv':
+          killall(True)
+          sleep(1)
+          break
+        else:
+          csnum = csnum + 1
+          msg = 'wfd_idr_request\r\n'
+          idrreq ='SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n'\
+          +'Content-Length: '+str(len(msg))+'\r\n'\
+          +'Content-Type: text/parameters\r\n'\
+          +'CSeq: '+str(csnum)+'\r\n\r\n'\
+          +msg
+  
+          print idrreq
+          sock.sendall(idrreq)
 
-		else:
-			sys.exit(1)
-	else:
-		print data
-		watchdog = 0
-		if len(data)==0 or 'wfd_trigger_method: TEARDOWN' in data:
-			killall(True)
-			sleep(1)
-			break
-		elif 'wfd_video_formats' in data:
-			launchplayer(player_select)
-		messagelist=data.split('\r\n\r\n')
-		print messagelist
-		singlemessagelist=[x for x in messagelist if ('GET_PARAMETER' in x or 'SET_PARAMETER' in x )]
-		print singlemessagelist
-		for singlemessage in singlemessagelist:
-			entrylist=singlemessage.split('\r')
-			for entry in entrylist:
-				if 'CSeq' in entry:
-					cseq = entry
+    else:
+      sys.exit(1)
+  else:
+    print data
+    watchdog = 0
+    if len(data)==0 or 'wfd_trigger_method: TEARDOWN' in data:
+      killall(True)
+      sleep(1)
+      break
+    elif 'wfd_video_formats' in data:
+      launchplayer(player_select)
+    messagelist=data.split('\r\n\r\n')
+    print messagelist
+    singlemessagelist=[x for x in messagelist if ('GET_PARAMETER' in x or 'SET_PARAMETER' in x )]
+    print singlemessagelist
+    for singlemessage in singlemessagelist:
+      entrylist=singlemessage.split('\r')
+      for entry in entrylist:
+        if 'CSeq' in entry:
+          cseq = entry
 
-			resp='RTSP/1.0 200 OK\r'+cseq+'\r\n\r\n';#cseq contains \n
-			print resp
-			sock.sendall(resp)
-		
-		uibcstart(sock,data)
+      resp='RTSP/1.0 200 OK\r'+cseq+'\r\n\r\n';#cseq contains \n
+      print resp
+      sock.sendall(resp)
+    
+    uibcstart(sock,data)
 
 idrsock.close()
 sock.close()
