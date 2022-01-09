@@ -28,26 +28,8 @@ from logging import DEBUG, StreamHandler, getLogger
 import logging
 from contextlib import closing
 
-##################### Settings #####################
-player_select = 2
-# 0: non-RPi systems. (using vlc or gstreamer)
-# 1: player1 has lower latency.
-# 2: player2 handles still images and sound better.
-# 3: omxplayer # Using this option for video playback on Android
-sound_output_select = 0
-# 0: HDMI sound output
-# 1: 3.5mm audio jack output
-# 2: alsa
-disable_1920_1080_60fps = 1
-enable_mouse_keyboard = 0
-
-display_power_management = 0
-# 1: (For projectors) Put the display in sleep mode when not in use by lazycast 
-
-
 
 class Res:
-
     def __init__(self, id, width, height, refresh, progressive=True, h264level='3.1', h265level='3.1'):
         self.id = id
         self.width = width
@@ -336,6 +318,10 @@ class Player:
         self.sinkip = sinkip
         self.idrsockport = idrsockport
     def start(self):
+        sound_output_select = 0
+        # 0: HDMI sound output
+        # 1: 3.5mm audio jack output
+        # 2: alsa
         self.player = subprocess.Popen(["./h264/h264.bin",str(self.idrsockport),str(sound_output_select),self.sinkip])
     def stop(self):
         if self.player != None:
@@ -538,10 +524,11 @@ def setup_logger():
     logger.addHandler(handler)
     logger.propagate = True
 
-setup_logger()
 parser = argparse.ArgumentParser()
 parser.add_argument('arg1', nargs='?', default='192.168.173.80')
 args = parser.parse_args()
 sourceip = vars(args)['arg1']
+
+setup_logger()
 p = PiCast(sourceip)
 p.run()
