@@ -174,7 +174,6 @@ class Player:
         self.sinkip = sinkip
         self.idrsockport = idrsockport
     def start(self):
-        sinkip = sock.getsockname()[0]
         self.player = subprocess.Popen(["./h264/h264.bin",str(self.idrsockport),str(sound_output_select),self.sinkip])
     def stop(self):
         if self.player != None:
@@ -208,6 +207,12 @@ class PiCast:
         addr, self.idrsockport = self.idrsock.getsockname()
         self.player = Player(self.sock.getsockname()[0],self.idrsockport)
         self.negotiate()
+        self.player.start()
+        fcntl.fcntl(self.sock, fcntl.F_SETFL, os.O_NONBLOCK)
+        fcntl.fcntl(self.idrsock, fcntl.F_SETFL, os.O_NONBLOCK)
+        self.rtpsrv()
+        self.idrsock.close()
+        self.sock.close()
 
     def m1(self):
         data = (self.sock.recv(1000))
@@ -357,6 +362,79 @@ class PiCast:
         self.m6()
         self.m7()
         print "---- Negotiation successful ----"
+    def handle_rcv_err(self, e, csnum):
+        err = e.args[0]
+        if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
+          try:
+            datafromc = self.idrsock.recv(1000)
+          except socket.error, e:
+            err = e.args[0]
+            if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
+              processrunning = os.popen('ps au').read()
+              if 'h264.bin' not in processrunning:
+                self.player.start()
+                sleep(0.01)
+              else:
+                self.watchdog += 1
+                if self.watchdog == 70/0.01:
+                  self.player.stop()
+                  sleep(1)
+            else:
+              #sys.exit(1)
+              pass
+          else:
+            print datafromc
+            elemfromc = datafromc.split(' ')        
+            if elemfromc[0] == 'recv':
+              self.player.stop()
+              sleep(1)
+            else:
+              csnum = csnum + 1
+              msg = 'wfd_idr_request\r\n'
+              idrreq ='SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n'\
+              +'Content-Length: '+str(len(msg))+'\r\n'\
+              +'Content-Type: text/parameters\r\n'\
+              +'CSeq: '+str(csnum)+'\r\n\r\n'\
+              +msg
+         
+              print idrreq
+              self.sock.sendall(idrreq)
+        else:
+          #sys.exit(1)
+          pass
+        return csnum
+
+    def rtpsrv(self):
+        csnum = 102
+        self.watchdog = 0
+        while True:
+          try:
+            data = (self.sock.recv(1000))
+          except socket.error, e:
+            csnum = self.handle_rcv_err(e, csnum)
+          else:
+            print data
+            self.watchdog = 0
+            if len(data)==0 or 'wfd_trigger_method: TEARDOWN' in data:
+              self.player.stop()
+              sleep(1)
+              break
+            elif 'wfd_video_formats' in data:
+              self.player.start()
+            messagelist=data.split('\r\n\r\n')
+            print messagelist
+            singlemessagelist=[x for x in messagelist if ('GET_PARAMETER' in x or 'SET_PARAMETER' in x )]
+            print singlemessagelist
+            for singlemessage in singlemessagelist:
+              entrylist=singlemessage.split('\r')
+              for entry in entrylist:
+                if 'CSeq' in entry:
+                  cseq = entry
+              resp='RTSP/1.0 200 OK\r'+cseq+'\r\n\r\n';#cseq contains \n
+              print resp
+              self.sock.sendall(resp)
+            self.uibcstart(data)
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('arg1', nargs='?', default='192.168.173.80')
@@ -364,89 +442,3 @@ args = parser.parse_args()
 sourceip = vars(args)['arg1']
 p = PiCast(sourceip)
 p.run()
-sock = p.sock
-runonpi = p.runonpi
-idrsock = p.idrsock
-idrsockport = p.idrsockport
-
-p.player.start()
-
-fcntl.fcntl(sock, fcntl.F_SETFL, os.O_NONBLOCK)
-fcntl.fcntl(idrsock, fcntl.F_SETFL, os.O_NONBLOCK)
-
-csnum = 102
-watchdog = 0
-while True:
-  try:
-    data = (sock.recv(1000))
-  except socket.error, e:
-    err = e.args[0]
-    if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
-      try:
-        datafromc = idrsock.recv(1000)
-      except socket.error, e:
-        err = e.args[0]
-        if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
-          processrunning = os.popen('ps au').read()
-          if 'h264.bin' not in processrunning:
-            p.player.start()
-            sleep(0.01)
-          else:
-            watchdog = watchdog + 1
-            if watchdog == 70/0.01:
-              p.player.stop()
-              sleep(1)
-              break
-        else:
-          sys.exit(1)
-      else:
-        print datafromc
-        elemfromc = datafromc.split(' ')        
-        if elemfromc[0] == 'recv':
-          killall(True)
-          sleep(1)
-          break
-        else:
-          csnum = csnum + 1
-          msg = 'wfd_idr_request\r\n'
-          idrreq ='SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n'\
-          +'Content-Length: '+str(len(msg))+'\r\n'\
-          +'Content-Type: text/parameters\r\n'\
-          +'CSeq: '+str(csnum)+'\r\n\r\n'\
-          +msg
-  
-          print idrreq
-          sock.sendall(idrreq)
-
-    else:
-      sys.exit(1)
-  else:
-    print data
-    watchdog = 0
-    if len(data)==0 or 'wfd_trigger_method: TEARDOWN' in data:
-      p.player.stop()
-      sleep(1)
-      break
-    elif 'wfd_video_formats' in data:
-      p.player.start()
-    messagelist=data.split('\r\n\r\n')
-    print messagelist
-    singlemessagelist=[x for x in messagelist if ('GET_PARAMETER' in x or 'SET_PARAMETER' in x )]
-    print singlemessagelist
-    for singlemessage in singlemessagelist:
-      entrylist=singlemessage.split('\r')
-      for entry in entrylist:
-        if 'CSeq' in entry:
-          cseq = entry
-
-      resp='RTSP/1.0 200 OK\r'+cseq+'\r\n\r\n';#cseq contains \n
-      print resp
-      sock.sendall(resp)
-    
-    uibcstart(sock,data)
-
-idrsock.close()
-sock.close()
-
-
-
