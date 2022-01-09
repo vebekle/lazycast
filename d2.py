@@ -26,6 +26,7 @@ import subprocess
 import argparse
 from logging import DEBUG, StreamHandler, getLogger
 import logging
+from contextlib import closing
 
 ##################### Settings #####################
 player_select = 2
@@ -43,130 +44,6 @@ enable_mouse_keyboard = 0
 display_power_management = 0
 # 1: (For projectors) Put the display in sleep mode when not in use by lazycast 
 
-res_cea_640_480p60   = 1
-res_cea_720_480p60   = 1
-res_cea_720_480i60   = 1
-res_cea_720_576p50   = 1
-res_cea_720_576i50   = 1
-res_cea_1280_720p30  = 1
-res_cea_1280_720p60  = 0
-res_cea_1920_1080p30 = 1
-res_cea_1920_1080p60 = 0 ####
-res_cea_1920_1080i60 = 0
-res_cea_1280_720p25  = 1
-res_cea_1280_720p50  = 1
-res_cea_1920_1080p25 = 1
-res_cea_1920_1080p50 = 0
-res_cea_1920_1080i50 = 0
-res_cea_1280_720p24  = 1
-res_cea_1920_1080p24 = 1
-
-res_vesa_800_600p30   = 0
-res_vesa_800_600p60   = 0
-res_vesa_1024_768p30  = 0
-res_vesa_1024_768p60  = 0
-res_vesa_1152_854p30  = 0
-res_vesa_1152_854p60  = 0
-res_vesa_1280_768p30  = 0
-res_vesa_1280_768p60  = 0
-res_vesa_1280_800p30  = 0
-res_vesa_1280_800p60  = 0
-res_vesa_1360_768p30  = 0
-res_vesa_1360_768p60  = 0
-res_vesa_1366_768p30  = 0
-res_vesa_1366_768p60  = 0
-res_vesa_1280_1024p30 = 0
-res_vesa_1280_1024p60 = 0
-res_vesa_1440_1050p30 = 0
-res_vesa_1440_1050p60 = 0
-res_vesa_1440_900p30  = 0
-res_vesa_1440_900p60  = 0
-res_vesa_1600_900p30  = 0
-res_vesa_1600_900p60  = 0
-res_vesa_1600_1200p30 = 0
-res_vesa_1600_1200p60 = 0
-res_vesa_1680_1024p30 = 0
-res_vesa_1680_1024p60 = 0
-res_vesa_1680_1050p30 = 0
-res_vesa_1680_1050p60 = 0
-res_vesa_1920_1200p30 = 0
-
-res_hh_800_480p30 = 0
-res_hh_800_480p60 = 0
-res_hh_854_480p30 = 0
-res_hh_854_480p60 = 0
-res_hh_864_480p30 = 0
-res_hh_864_480p60 = 0
-res_hh_640_360p30 = 0
-res_hh_640_360p60 = 0
-res_hh_960_540p30 = 0
-res_hh_960_540p60 = 0
-res_hh_848_480p30 = 0
-res_hh_848_480p60 = 0
-
-res_cea = 0
-res_cea = (res_cea<<1) + res_cea_1920_1080p24
-res_cea = (res_cea<<1) + res_cea_1280_720p24
-res_cea = (res_cea<<1) + res_cea_1920_1080i50
-res_cea = (res_cea<<1) + res_cea_1920_1080p50
-res_cea = (res_cea<<1) + res_cea_1920_1080p25
-res_cea = (res_cea<<1) + res_cea_1280_720p50
-res_cea = (res_cea<<1) + res_cea_1280_720p25
-res_cea = (res_cea<<1) + res_cea_1920_1080i60
-res_cea = (res_cea<<1) + res_cea_1920_1080p60
-res_cea = (res_cea<<1) + res_cea_1920_1080p30
-res_cea = (res_cea<<1) + res_cea_1280_720p60
-res_cea = (res_cea<<1) + res_cea_1280_720p30
-res_cea = (res_cea<<1) + res_cea_720_576i50
-res_cea = (res_cea<<1) + res_cea_720_576p50
-res_cea = (res_cea<<1) + res_cea_720_480i60
-res_cea = (res_cea<<1) + res_cea_720_480p60
-res_cea = (res_cea<<1) + res_cea_640_480p60
-
-res_vesa = 0
-res_vesa = (res_vesa<<1) + res_vesa_1920_1200p30
-res_vesa = (res_vesa<<1) + res_vesa_1680_1050p60
-res_vesa = (res_vesa<<1) + res_vesa_1680_1050p30
-res_vesa = (res_vesa<<1) + res_vesa_1680_1024p60
-res_vesa = (res_vesa<<1) + res_vesa_1680_1024p30
-res_vesa = (res_vesa<<1) + res_vesa_1600_1200p60
-res_vesa = (res_vesa<<1) + res_vesa_1600_1200p30
-res_vesa = (res_vesa<<1) + res_vesa_1600_900p60
-res_vesa = (res_vesa<<1) + res_vesa_1600_900p30
-res_vesa = (res_vesa<<1) + res_vesa_1440_900p60
-res_vesa = (res_vesa<<1) + res_vesa_1440_900p30
-res_vesa = (res_vesa<<1) + res_vesa_1440_1050p60
-res_vesa = (res_vesa<<1) + res_vesa_1440_1050p30
-res_vesa = (res_vesa<<1) + res_vesa_1280_1024p60
-res_vesa = (res_vesa<<1) + res_vesa_1280_1024p30
-res_vesa = (res_vesa<<1) + res_vesa_1366_768p60
-res_vesa = (res_vesa<<1) + res_vesa_1366_768p30
-res_vesa = (res_vesa<<1) + res_vesa_1360_768p60
-res_vesa = (res_vesa<<1) + res_vesa_1360_768p30
-res_vesa = (res_vesa<<1) + res_vesa_1280_800p60
-res_vesa = (res_vesa<<1) + res_vesa_1280_800p30
-res_vesa = (res_vesa<<1) + res_vesa_1280_768p60
-res_vesa = (res_vesa<<1) + res_vesa_1280_768p30
-res_vesa = (res_vesa<<1) + res_vesa_1152_854p60
-res_vesa = (res_vesa<<1) + res_vesa_1152_854p30
-res_vesa = (res_vesa<<1) + res_vesa_1024_768p60
-res_vesa = (res_vesa<<1) + res_vesa_1024_768p30
-res_vesa = (res_vesa<<1) + res_vesa_800_600p60
-res_vesa = (res_vesa<<1) + res_vesa_800_600p30
-
-res_hh = 0
-res_hh = (res_hh<<1) + res_hh_848_480p60
-res_hh = (res_hh<<1) + res_hh_848_480p30
-res_hh = (res_hh<<1) + res_hh_960_540p60
-res_hh = (res_hh<<1) + res_hh_960_540p30
-res_hh = (res_hh<<1) + res_hh_640_360p60
-res_hh = (res_hh<<1) + res_hh_640_360p30
-res_hh = (res_hh<<1) + res_hh_864_480p60
-res_hh = (res_hh<<1) + res_hh_864_480p30
-res_hh = (res_hh<<1) + res_hh_854_480p60
-res_hh = (res_hh<<1) + res_hh_854_480p30
-res_hh = (res_hh<<1) + res_hh_800_480p60
-res_hh = (res_hh<<1) + res_hh_800_480p30
 
 
 class Res:
@@ -296,7 +173,10 @@ class WfdVideoParameters:
         # LPCM: 44.1kHz, 16b; 48 kHZ,16b
         # AAC: 48 kHz, 16b, 2 channels; 48kHz,16b, 4 channels, 48 kHz,16b,6 channels
         # AAC 00000001 00  : 2 ch AAC 48kHz
-        msg = 'wfd_audio_codecs: AAC 00000001 00, LPCM 00000002 00\r\n'
+        msg = 'wfd_audio_codecs: LPCM 00000002 00\r\n'
+        #msg ='wfd_audio_codecs: AAC 00000001 00\r\n'
+        #msg = 'wfd_audio_codecs: AAC 00000001 00, LPCM 00000002 00\r\n'
+        
         # wfd_video_formats: <native_resolution: 0x20>, <preferred>, <profile>, <level>,
         #                    <cea>, <vesa>, <hh>, <latency>, <min_slice>, <slice_enc>, <frame skipping support>
         #                    <max_hres>, <max_vres>
@@ -309,9 +189,135 @@ class WfdVideoParameters:
         preferred = 0
         profile = 0x02 | 0x01
         level = 0x10
-        cea = 0x0001FFFF
-        vesa = 0x0FFFFFFF
-        handheld = 0x0
+
+        res_cea_640_480p60   = 1
+        res_cea_720_480p60   = 1
+        res_cea_720_480i60   = 1
+        res_cea_720_576p50   = 1
+        res_cea_720_576i50   = 1
+        res_cea_1280_720p30  = 1
+        res_cea_1280_720p60  = 0
+        res_cea_1920_1080p30 = 1
+        res_cea_1920_1080p60 = 0 ####
+        res_cea_1920_1080i60 = 0
+        res_cea_1280_720p25  = 1
+        res_cea_1280_720p50  = 1
+        res_cea_1920_1080p25 = 1
+        res_cea_1920_1080p50 = 0
+        res_cea_1920_1080i50 = 0
+        res_cea_1280_720p24  = 1
+        res_cea_1920_1080p24 = 1
+        
+        res_vesa_800_600p30   = 0
+        res_vesa_800_600p60   = 0
+        res_vesa_1024_768p30  = 0
+        res_vesa_1024_768p60  = 0
+        res_vesa_1152_854p30  = 0
+        res_vesa_1152_854p60  = 0
+        res_vesa_1280_768p30  = 0
+        res_vesa_1280_768p60  = 0
+        res_vesa_1280_800p30  = 0
+        res_vesa_1280_800p60  = 0
+        res_vesa_1360_768p30  = 0
+        res_vesa_1360_768p60  = 0
+        res_vesa_1366_768p30  = 0
+        res_vesa_1366_768p60  = 0
+        res_vesa_1280_1024p30 = 0
+        res_vesa_1280_1024p60 = 0
+        res_vesa_1440_1050p30 = 0
+        res_vesa_1440_1050p60 = 0
+        res_vesa_1440_900p30  = 0
+        res_vesa_1440_900p60  = 0
+        res_vesa_1600_900p30  = 0
+        res_vesa_1600_900p60  = 0
+        res_vesa_1600_1200p30 = 0
+        res_vesa_1600_1200p60 = 0
+        res_vesa_1680_1024p30 = 0
+        res_vesa_1680_1024p60 = 0
+        res_vesa_1680_1050p30 = 0
+        res_vesa_1680_1050p60 = 0
+        res_vesa_1920_1200p30 = 0
+        
+        res_hh_800_480p30 = 0
+        res_hh_800_480p60 = 0
+        res_hh_854_480p30 = 0
+        res_hh_854_480p60 = 0
+        res_hh_864_480p30 = 0
+        res_hh_864_480p60 = 0
+        res_hh_640_360p30 = 0
+        res_hh_640_360p60 = 0
+        res_hh_960_540p30 = 0
+        res_hh_960_540p60 = 0
+        res_hh_848_480p30 = 0
+        res_hh_848_480p60 = 0
+        
+        res_cea = 0
+        res_cea = (res_cea<<1) + res_cea_1920_1080p24
+        res_cea = (res_cea<<1) + res_cea_1280_720p24
+        res_cea = (res_cea<<1) + res_cea_1920_1080i50
+        res_cea = (res_cea<<1) + res_cea_1920_1080p50
+        res_cea = (res_cea<<1) + res_cea_1920_1080p25
+        res_cea = (res_cea<<1) + res_cea_1280_720p50
+        res_cea = (res_cea<<1) + res_cea_1280_720p25
+        res_cea = (res_cea<<1) + res_cea_1920_1080i60
+        res_cea = (res_cea<<1) + res_cea_1920_1080p60
+        res_cea = (res_cea<<1) + res_cea_1920_1080p30
+        res_cea = (res_cea<<1) + res_cea_1280_720p60
+        res_cea = (res_cea<<1) + res_cea_1280_720p30
+        res_cea = (res_cea<<1) + res_cea_720_576i50
+        res_cea = (res_cea<<1) + res_cea_720_576p50
+        res_cea = (res_cea<<1) + res_cea_720_480i60
+        res_cea = (res_cea<<1) + res_cea_720_480p60
+        res_cea = (res_cea<<1) + res_cea_640_480p60
+        
+        res_vesa = 0
+        res_vesa = (res_vesa<<1) + res_vesa_1920_1200p30
+        res_vesa = (res_vesa<<1) + res_vesa_1680_1050p60
+        res_vesa = (res_vesa<<1) + res_vesa_1680_1050p30
+        res_vesa = (res_vesa<<1) + res_vesa_1680_1024p60
+        res_vesa = (res_vesa<<1) + res_vesa_1680_1024p30
+        res_vesa = (res_vesa<<1) + res_vesa_1600_1200p60
+        res_vesa = (res_vesa<<1) + res_vesa_1600_1200p30
+        res_vesa = (res_vesa<<1) + res_vesa_1600_900p60
+        res_vesa = (res_vesa<<1) + res_vesa_1600_900p30
+        res_vesa = (res_vesa<<1) + res_vesa_1440_900p60
+        res_vesa = (res_vesa<<1) + res_vesa_1440_900p30
+        res_vesa = (res_vesa<<1) + res_vesa_1440_1050p60
+        res_vesa = (res_vesa<<1) + res_vesa_1440_1050p30
+        res_vesa = (res_vesa<<1) + res_vesa_1280_1024p60
+        res_vesa = (res_vesa<<1) + res_vesa_1280_1024p30
+        res_vesa = (res_vesa<<1) + res_vesa_1366_768p60
+        res_vesa = (res_vesa<<1) + res_vesa_1366_768p30
+        res_vesa = (res_vesa<<1) + res_vesa_1360_768p60
+        res_vesa = (res_vesa<<1) + res_vesa_1360_768p30
+        res_vesa = (res_vesa<<1) + res_vesa_1280_800p60
+        res_vesa = (res_vesa<<1) + res_vesa_1280_800p30
+        res_vesa = (res_vesa<<1) + res_vesa_1280_768p60
+        res_vesa = (res_vesa<<1) + res_vesa_1280_768p30
+        res_vesa = (res_vesa<<1) + res_vesa_1152_854p60
+        res_vesa = (res_vesa<<1) + res_vesa_1152_854p30
+        res_vesa = (res_vesa<<1) + res_vesa_1024_768p60
+        res_vesa = (res_vesa<<1) + res_vesa_1024_768p30
+        res_vesa = (res_vesa<<1) + res_vesa_800_600p60
+        res_vesa = (res_vesa<<1) + res_vesa_800_600p30
+        
+        res_hh = 0
+        res_hh = (res_hh<<1) + res_hh_848_480p60
+        res_hh = (res_hh<<1) + res_hh_848_480p30
+        res_hh = (res_hh<<1) + res_hh_960_540p60
+        res_hh = (res_hh<<1) + res_hh_960_540p30
+        res_hh = (res_hh<<1) + res_hh_640_360p60
+        res_hh = (res_hh<<1) + res_hh_640_360p30
+        res_hh = (res_hh<<1) + res_hh_864_480p60
+        res_hh = (res_hh<<1) + res_hh_864_480p30
+        res_hh = (res_hh<<1) + res_hh_854_480p60
+        res_hh = (res_hh<<1) + res_hh_854_480p30
+        res_hh = (res_hh<<1) + res_hh_800_480p60
+        res_hh = (res_hh<<1) + res_hh_800_480p30
+
+        cea = res_cea
+        vesa = res_vesa
+        handheld = res_hh
         msg += 'wfd_video_formats: {0:02X} {1:02X} {2:02X} {3:02X} {4:08X} {5:08X} {6:08X}' \
                ' 00 0000 0000 00 none none\r\n'.format(native, preferred, profile, level, cea, vesa, handheld)
         msg += 'wfd_3d_video_formats: none\r\n' \
@@ -343,13 +349,11 @@ class PiCast:
         self.csnum = 0
         self.player = None
 
-        self.sock = None
         self.sourceip = sourceip
         cpuinfo = os.popen('grep Hardware /proc/cpuinfo')
         cpustr = cpuinfo.read()
         self.runonpi = 'BCM2835' in cpustr or 'BCM2711' in cpustr
         cpuinfo.close()
-        self.player_select = 2
     def rtsp_response_header(self, cmd=None, url=None, res=None, seq=None, others=None):
         if cmd is not None:
             msg = "{0:s} {1:s} RTSP/1.0".format(cmd, url)
@@ -365,144 +369,77 @@ class PiCast:
         msg += '\r\n'
         return msg
     def run(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_address = (self.sourceip, 7236)
-        self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            self.sock.connect(server_address)
-        except socket.error, e:
-            self.sock.close()
-            return
-        self.idrsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        idrsock_address = ('127.0.0.1', 0)
-        self.idrsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.idrsock.bind(idrsock_address)
-        addr, self.idrsockport = self.idrsock.getsockname()
-        self.player = Player(self.sock.getsockname()[0],self.idrsockport)
-        self.negotiate()
-        self.player.start()
-        fcntl.fcntl(self.sock, fcntl.F_SETFL, os.O_NONBLOCK)
-        fcntl.fcntl(self.idrsock, fcntl.F_SETFL, os.O_NONBLOCK)
-        self.rtpsrv()
-        self.idrsock.close()
-        self.sock.close()
+        with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+            server_address = (self.sourceip, 7236)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.connect(server_address)
+            except socket.error, e:
+                return
+            with closing(socket.socket(socket.AF_INET, socket.SOCK_DGRAM)) as idrsock:
+                idrsock_address = ('127.0.0.1', 0)
+                idrsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                idrsock.bind(idrsock_address)
+                addr, idrsockport = idrsock.getsockname()
+                self.player = Player(sock.getsockname()[0],idrsockport)
+                self.negotiate(sock)
+                self.player.start()
+                fcntl.fcntl(sock, fcntl.F_SETFL, os.O_NONBLOCK)
+                fcntl.fcntl(idrsock, fcntl.F_SETFL, os.O_NONBLOCK)
+                self.rtpsrv(sock, idrsock)
 
-    def m1(self):
+    def m1(self, sock):
         logger = getLogger("PiCast.m1")
-        data = (self.sock.recv(1000))
+        data = (sock.recv(1000))
         logger.debug("<-{}".format(data))
         s_data = 'RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: org.wfa.wfd1.0, SET_PARAMETER, GET_PARAMETER\r\n\r\n'
         logger.debug("->{}".format(s_data))
-        self.sock.sendall(s_data)
-    def m2(self):
+        sock.sendall(s_data)
+    def m2(self, sock):
         logger = getLogger("PiCast.m2")
         s_data = 'OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nRequire: org.wfa.wfd1.0\r\n\r\n'
         logger.debug("<-{}".format(s_data))
-        self.sock.sendall(s_data)
+        sock.sendall(s_data)
         
-        data = (self.sock.recv(1000))
+        data = (sock.recv(1000))
         logger.debug("->{}".format(data))
-    def m3(self):
+    def m3(self, sock):
         logger = getLogger("PiCast.m3")
-        data=(self.sock.recv(1000))
+        data=(sock.recv(1000))
         logger.debug("->{}".format(data))
         
         msg = 'wfd_client_rtp_ports: RTP/AVP/UDP;unicast 1028 0 mode=play\r\n'
-        if self.player_select == 2:
-          msg = msg + 'wfd_audio_codecs: LPCM 00000002 00\r\n'
-        else:
-          msg = msg + 'wfd_audio_codecs: AAC 00000001 00\r\n'
-        
-        msg = msg + str('wfd_video_formats: 00 00 02 10 %08X %08X %08X 00 0000 0000 00 none none\r\n' % (res_cea,res_vesa,res_hh))
-                
-        msg = msg +'wfd_3d_video_formats: none\r\n'\
-          +'wfd_coupled_sink: none\r\n'\
-          +'wfd_connector_type: 05\r\n'\
-          +'wfd_uibc_capability: input_category_list=GENERIC, HIDC;generic_cap_list=Keyboard, Mouse;hidc_cap_list=Keyboard/USB, Mouse/USB;port=none\r\n'\
-          +'wfd_standby_resume_capability: none\r\n'\
-          +'wfd_content_protection: none\r\n'
-        
-        
-        if self.runonpi and not os.path.exists('edid.txt'):
-            os.system('tvservice -d edid.txt')
-        
-        edidlen = 0
-        if os.path.exists('edid.txt'):
-          edidfile = open('edid.txt','r')
-          lines = edidfile.readlines()
-          edidfile.close()
-          edidstr =''
-          for line in lines:
-            edidstr = edidstr + line
-          edidlen = len(edidstr)
-        
-        if 'wfd_display_edid' in data and edidlen != 0:
-          msg = msg + 'wfd_display_edid: ' + '{:04X}'.format(edidlen/256 + 1) + ' ' + str(edidstr.encode('hex'))+'\r\n'
-        
-        # if 'microsoft_latency_management_capability' in data:
-        #   msg = msg + 'microsoft-latency-management-capability: supported\r\n'
-        # if 'microsoft_format_change_capability' in data:
-        #   msg = msg + 'microsoft_format_change_capability: supported\r\n'
-        
-        if 'intel_friendly_name' in data:
-          msg = msg + 'intel_friendly_name: raspberrypi\r\n'
-        if 'intel_sink_manufacturer_name' in data:
-          msg = msg + 'intel_sink_manufacturer_name: lazycast\r\n'
-        if 'intel_sink_model_name' in data:
-          msg = msg + 'intel_sink_model_name: lazycast\r\n'
-        if 'intel_sink_version' in data:
-          msg = msg + 'intel_sink_version: 20.4.26\r\n'
-        if 'intel_sink_device_URL' in data:
-          msg = msg + 'intel_sink_device_URL: https://github.com/homeworkc/lazycast\r\n'
+        msg = msg + WfdVideoParameters().get_video_parameter() 
         
         m3resp ='RTSP/1.0 200 OK\r\nCSeq: 2\r\n'+'Content-Type: text/parameters\r\nContent-Length: '+str(len(msg))+'\r\n\r\n'+msg
-        self.sock.sendall(m3resp)
+        sock.sendall(m3resp)
         logger.debug("<-{}".format(m3resp))
-    def m4(self):
+    def m4(self, sock):
         logger = getLogger("PiCast.m4")
-        data=(self.sock.recv(1000))
+        data=(sock.recv(1000))
         logger.debug("->{}".format(data))
         
         s_data = 'RTSP/1.0 200 OK\r\nCSeq: 3\r\n\r\n'
-        self.sock.sendall(s_data)
+        sock.sendall(s_data)
         logger.debug("<-{}".format(s_data))
-        self.uibcstart(data)
-    def uibcstart(self, data):
-        messagelist=data.split('\r\n\r\n')
-        for entry in messagelist:
-          if 'wfd_uibc_capability:' in entry:
-            entrylist = entry.split(';')
-            uibcport = entrylist[-1]
-            uibcport = uibcport.split('\r')
-            uibcport = uibcport[0]
-            uibcport = uibcport.split('=')
-            uibcport = uibcport[1]
-            print 'uibcport:'+uibcport+"\n"
-            if 'none' not in uibcport and enable_mouse_keyboard == 1:
-              os.system('sudo pkill control.bin')
-              os.system('sudo pkill controlhidc.bin')
-              if('hidc_cap_list=none' not in entry):
-                os.system('./control/controlhidc.bin '+ uibcport + ' ' + sourceip + ' &')
-              elif('generic_cap_list=none' not in entry):
-                os.system('./control/control.bin '+ uibcport + ' &')
-    def m5(self):
+    def m5(self, sock):
         logger = getLogger("PiCast.m5")
-        data=(self.sock.recv(1000))
+        data=(sock.recv(1000))
         logger.debug("->{}".format(data))
         
         s_data = 'RTSP/1.0 200 OK\r\nCSeq: 4\r\n\r\n'
-        self.sock.sendall(s_data)
+        sock.sendall(s_data)
         logger.debug("<-{}".format(s_data))
-    def m6(self):
+    def m6(self, sock):
         logger = getLogger("PiCast.m6")
         m6req ='SETUP rtsp://'+self.sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
         +'CSeq: 5\r\n'\
         +'Transport: RTP/AVP/UDP;unicast;client_port=1028\r\n\r\n'
         logger.debug("<-{}".format(m6req))
-        self.sock.sendall(m6req)
+        sock.sendall(m6req)
         
-        data=(self.sock.recv(1000))
+        data= sock.recv(1000)
         logger.debug("->{}".format(data))
         
         paralist=data.split(';')
@@ -514,34 +451,35 @@ class PiCast:
         
         paralist=data.split()
         position=paralist.index('Session:')+1
-        self.sessionid=paralist[position]
-    def m7(self):
+        sessionid=paralist[position]
+        return sessionid
+    def m7(self, sock, sessionid):
         logger = getLogger("PiCast.m7")
         m7req ='PLAY rtsp://'+self.sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
         +'CSeq: 6\r\n'\
-        +'Session: '+str(self.sessionid)+'\r\n\r\n'
-        self.sock.sendall(m7req)
+        +'Session: '+str(sessionid)+'\r\n\r\n'
+        sock.sendall(m7req)
         logger.debug("<-{}".format(m7req))
         
-        data=(self.sock.recv(1000))
+        data= sock.recv(1000)
         logger.debug("->{}".format(data))
-    def negotiate(self):
+    def negotiate(self, conn):
         logger = getLogger("PiCast.daemon")
         logger.debug("---- Start negotiation ----")
-        self.m1()
-        self.m2()
-        self.m3()
-        self.m4()
-        self.m5()
-        self.m6()
-        self.m7()
+        self.m1(conn)
+        self.m2(conn)
+        self.m3(conn)
+        self.m4(conn)
+        self.m5(conn)
+        sessionid = self.m6(conn)
+        self.m7(conn, sessionid)
         logger.debug("---- Negotiation successful ----")
-    def handle_rcv_err(self, e, csnum):
+    def handle_rcv_err(self, e, csnum, sock, idrsock):
         logger = getLogger("PiCast.daemon.error")
         err = e.args[0]
         if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
           try:
-            datafromc = self.idrsock.recv(1000)
+            datafromc = idrsock.recv(1000)
           except socket.error, e:
             err = e.args[0]
             if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
@@ -557,12 +495,6 @@ class PiCast:
             else:
               logger.debug("socket error.")
           else:
-            #print datafromc
-            #elemfromc = datafromc.split(' ')        
-            #if elemfromc[0] == 'recv':
-            #  self.player.stop()
-            #  sleep(1)
-            #else:
             csnum = csnum + 1
             msg = 'wfd_idr_request\r\n'
             idrreq ='SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n'\
@@ -571,21 +503,21 @@ class PiCast:
             +'CSeq: '+str(csnum)+'\r\n\r\n'\
             +msg
          
-            self.sock.sendall(idrreq)
+            sock.sendall(idrreq)
             logger.debug("idreq: {}".format(idrreq))
         else:
           logger.debug("Exit because of socket error")
         return csnum
 
-    def rtpsrv(self):
+    def rtpsrv(self, sock, idrsock):
         logger = getLogger("PiCast.rtpsrv")
         csnum = 102
         self.watchdog = 0
         while True:
           try:
-            data = (self.sock.recv(1000))
+            data = sock.recv(1000)
           except socket.error, e:
-            csnum = self.handle_rcv_err(e, csnum)
+            csnum = self.handle_rcv_err(e, csnum, sock, idrsock)
           else:
             logger.debug("->{}".format(data))
             self.watchdog = 0
@@ -604,9 +536,8 @@ class PiCast:
                 if 'CSeq' in entry:
                   cseq = entry
                   resp='RTSP/1.0 200 OK\r'+cseq+'\r\n\r\n';#cseq contains \n
-                  self.sock.sendall(resp)
+                  sock.sendall(resp)
                   logger.debug("<-{}".format(resp))
-            #self.uibcstart(data)
 
 
 
