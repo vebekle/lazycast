@@ -25,6 +25,7 @@ import sys
 import subprocess
 import argparse
 from logging import DEBUG, StreamHandler, getLogger
+import logging
 
 ##################### Settings #####################
 player_select = 2
@@ -228,18 +229,17 @@ class PiCast:
         logger.debug("->{}".format(s_data))
         self.sock.sendall(s_data)
     def m2(self):
-        # M2
+        logger = getLogger("PiCast.m2")
         s_data = 'OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nRequire: org.wfa.wfd1.0\r\n\r\n'
-        print "<---M2---\n" + s_data
+        logger.debug("<-{}".format(s_data))
         self.sock.sendall(s_data)
         
         data = (self.sock.recv(1000))
-        print "-------->\n" + data
-        m2data = data
+        logger.debug("->{}".format(data))
     def m3(self):
-        # M3
+        logger = getLogger("PiCast.m3")
         data=(self.sock.recv(1000))
-        print "---M3--->\n" + data
+        logger.debug("->{}".format(data))
         
         msg = 'wfd_client_rtp_ports: RTP/AVP/UDP;unicast 1028 0 mode=play\r\n'
         if self.player_select == 2:
@@ -290,77 +290,77 @@ class PiCast:
           msg = msg + 'intel_sink_device_URL: https://github.com/homeworkc/lazycast\r\n'
         
         m3resp ='RTSP/1.0 200 OK\r\nCSeq: 2\r\n'+'Content-Type: text/parameters\r\nContent-Length: '+str(len(msg))+'\r\n\r\n'+msg
-        print "<--------\n" + m3resp
         self.sock.sendall(m3resp)
+        logger.debug("<-{}".format(m3resp))
     def m4(self):
-        # M4
+        logger = getLogger("PiCast.m4")
         data=(self.sock.recv(1000))
-        print "---M4--->\n" + data
+        logger.debug("->{}".format(data))
         
         s_data = 'RTSP/1.0 200 OK\r\nCSeq: 3\r\n\r\n'
-        print "<--------\n" + s_data
         self.sock.sendall(s_data)
+        logger.debug("<-{}".format(s_data))
         self.uibcstart(data)
     def uibcstart(self, data):
-      #print data
-      messagelist=data.split('\r\n\r\n')
-      for entry in messagelist:
-        if 'wfd_uibc_capability:' in entry:
-          entrylist = entry.split(';')
-          uibcport = entrylist[-1]
-          uibcport = uibcport.split('\r')
-          uibcport = uibcport[0]
-          uibcport = uibcport.split('=')
-          uibcport = uibcport[1]
-          print 'uibcport:'+uibcport+"\n"
-          if 'none' not in uibcport and enable_mouse_keyboard == 1:
-            os.system('sudo pkill control.bin')
-            os.system('sudo pkill controlhidc.bin')
-            if('hidc_cap_list=none' not in entry):
-              os.system('./control/controlhidc.bin '+ uibcport + ' ' + sourceip + ' &')
-            elif('generic_cap_list=none' not in entry):
-              os.system('./control/control.bin '+ uibcport + ' &')
+        messagelist=data.split('\r\n\r\n')
+        for entry in messagelist:
+          if 'wfd_uibc_capability:' in entry:
+            entrylist = entry.split(';')
+            uibcport = entrylist[-1]
+            uibcport = uibcport.split('\r')
+            uibcport = uibcport[0]
+            uibcport = uibcport.split('=')
+            uibcport = uibcport[1]
+            print 'uibcport:'+uibcport+"\n"
+            if 'none' not in uibcport and enable_mouse_keyboard == 1:
+              os.system('sudo pkill control.bin')
+              os.system('sudo pkill controlhidc.bin')
+              if('hidc_cap_list=none' not in entry):
+                os.system('./control/controlhidc.bin '+ uibcport + ' ' + sourceip + ' &')
+              elif('generic_cap_list=none' not in entry):
+                os.system('./control/control.bin '+ uibcport + ' &')
     def m5(self):
-        # M5
+        logger = getLogger("PiCast.m5")
         data=(self.sock.recv(1000))
-        print "---M5--->\n" + data
+        logger.debug("->{}".format(data))
         
         s_data = 'RTSP/1.0 200 OK\r\nCSeq: 4\r\n\r\n'
-        print "<--------\n" + s_data
         self.sock.sendall(s_data)
+        logger.debug("<-{}".format(s_data))
     def m6(self):
-        # M6
+        logger = getLogger("PiCast.m6")
         m6req ='SETUP rtsp://'+self.sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
         +'CSeq: 5\r\n'\
         +'Transport: RTP/AVP/UDP;unicast;client_port=1028\r\n\r\n'
-        print "<---M6---\n" + m6req
+        logger.debug("<-{}".format(m6req))
         self.sock.sendall(m6req)
         
         data=(self.sock.recv(1000))
-        print "-------->\n" + data
+        logger.debug("->{}".format(data))
         
         paralist=data.split(';')
-        print paralist
         serverport=[x for x in paralist if 'server_port=' in x]
-        print serverport
+        logger.debug("server port {}".format(serverport))
         serverport=serverport[-1]
         serverport=serverport[12:17]
-        print serverport
+        logger.debug("server port {}".format(serverport))
         
-        paralist=data.split( )
+        paralist=data.split()
         position=paralist.index('Session:')+1
         self.sessionid=paralist[position]
     def m7(self):
-        # M7
+        logger = getLogger("PiCast.m7")
         m7req ='PLAY rtsp://'+self.sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
         +'CSeq: 6\r\n'\
         +'Session: '+str(self.sessionid)+'\r\n\r\n'
-        print "<---M7---\n" + m7req
         self.sock.sendall(m7req)
+        logger.debug("<-{}".format(m7req))
         
         data=(self.sock.recv(1000))
-        print "-------->\n" + data
+        logger.debug("->{}".format(data))
     def negotiate(self):
+        logger = getLogger("PiCast.daemon")
+        logger.debug("---- Start negotiation ----")
         self.m1()
         self.m2()
         self.m3()
@@ -368,8 +368,9 @@ class PiCast:
         self.m5()
         self.m6()
         self.m7()
-        print "---- Negotiation successful ----"
+        logger.debug("---- Negotiation successful ----")
     def handle_rcv_err(self, e, csnum):
+        logger = getLogger("PiCast.daemon.error")
         err = e.args[0]
         if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
           try:
@@ -387,31 +388,30 @@ class PiCast:
                   self.player.stop()
                   sleep(1)
             else:
-              #sys.exit(1)
-              pass
+              logger.debug("socket error.")
           else:
-            print datafromc
-            elemfromc = datafromc.split(' ')        
-            if elemfromc[0] == 'recv':
-              self.player.stop()
-              sleep(1)
-            else:
-              csnum = csnum + 1
-              msg = 'wfd_idr_request\r\n'
-              idrreq ='SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n'\
-              +'Content-Length: '+str(len(msg))+'\r\n'\
-              +'Content-Type: text/parameters\r\n'\
-              +'CSeq: '+str(csnum)+'\r\n\r\n'\
-              +msg
+            #print datafromc
+            #elemfromc = datafromc.split(' ')        
+            #if elemfromc[0] == 'recv':
+            #  self.player.stop()
+            #  sleep(1)
+            #else:
+            csnum = csnum + 1
+            msg = 'wfd_idr_request\r\n'
+            idrreq ='SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n'\
+            +'Content-Length: '+str(len(msg))+'\r\n'\
+            +'Content-Type: text/parameters\r\n'\
+            +'CSeq: '+str(csnum)+'\r\n\r\n'\
+            +msg
          
-              print idrreq
-              self.sock.sendall(idrreq)
+            self.sock.sendall(idrreq)
+            logger.debug("idreq: {}".format(idrreq))
         else:
-          #sys.exit(1)
-          pass
+          logger.debug("Exit because of socket error")
         return csnum
 
     def rtpsrv(self):
+        logger = getLogger("PiCast.rtpsrv")
         csnum = 102
         self.watchdog = 0
         while True:
@@ -420,35 +420,38 @@ class PiCast:
           except socket.error, e:
             csnum = self.handle_rcv_err(e, csnum)
           else:
-            print data
+            logger.debug("->{}".format(data))
             self.watchdog = 0
             if len(data)==0 or 'wfd_trigger_method: TEARDOWN' in data:
               self.player.stop()
               sleep(1)
               break
             elif 'wfd_video_formats' in data:
+              logger.info("start player")
               self.player.start()
             messagelist=data.split('\r\n\r\n')
-            print messagelist
             singlemessagelist=[x for x in messagelist if ('GET_PARAMETER' in x or 'SET_PARAMETER' in x )]
-            print singlemessagelist
             for singlemessage in singlemessagelist:
               entrylist=singlemessage.split('\r')
               for entry in entrylist:
                 if 'CSeq' in entry:
                   cseq = entry
               resp='RTSP/1.0 200 OK\r'+cseq+'\r\n\r\n';#cseq contains \n
-              print resp
               self.sock.sendall(resp)
+              logger.debug("<-{}".format(resp))
             self.uibcstart(data)
 
 
 
 def setup_logger():
     logger = getLogger("PiCast")
+    logger.setLevel(DEBUG)
+
     handler = StreamHandler()
     handler.setLevel(DEBUG)
-    logger.setLevel(DEBUG)
+
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.propagate = True
 
