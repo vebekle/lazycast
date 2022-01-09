@@ -350,10 +350,6 @@ class PiCast:
         self.player = None
 
         self.sourceip = sourceip
-        cpuinfo = os.popen('grep Hardware /proc/cpuinfo')
-        cpustr = cpuinfo.read()
-        self.runonpi = 'BCM2835' in cpustr or 'BCM2711' in cpustr
-        cpuinfo.close()
     def rtsp_response_header(self, cmd=None, url=None, res=None, seq=None, others=None):
         if cmd is not None:
             msg = "{0:s} {1:s} RTSP/1.0".format(cmd, url)
@@ -393,15 +389,14 @@ class PiCast:
         logger = getLogger("PiCast.m1")
         data = (sock.recv(1000))
         logger.debug("<-{}".format(data))
-        s_data = 'RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: org.wfa.wfd1.0, SET_PARAMETER, GET_PARAMETER\r\n\r\n'
+        s_data = self.rtsp_response_header(seq=1, res="200 OK", others=[("Public", "org.wfa.wfd1.0, SET_PARAMETER, GET_PARAMETER")])
         logger.debug("->{}".format(s_data))
         sock.sendall(s_data)
     def m2(self, sock):
         logger = getLogger("PiCast.m2")
-        s_data = 'OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nRequire: org.wfa.wfd1.0\r\n\r\n'
+        s_data = self.rtsp_response_header(seq=1, cmd="OPTIONS", url="*", others=[("Require", "org.wfa.wfd1.0")])
         logger.debug("<-{}".format(s_data))
         sock.sendall(s_data)
-        
         data = (sock.recv(1000))
         logger.debug("->{}".format(data))
     def m3(self, sock):
@@ -412,7 +407,7 @@ class PiCast:
         msg = 'wfd_client_rtp_ports: RTP/AVP/UDP;unicast 1028 0 mode=play\r\n'
         msg = msg + WfdVideoParameters().get_video_parameter() 
         
-        m3resp ='RTSP/1.0 200 OK\r\nCSeq: 2\r\n'+'Content-Type: text/parameters\r\nContent-Length: '+str(len(msg))+'\r\n\r\n'+msg
+        m3resp = self.rtsp_response_header(seq=2, res="200 OK", others=[("Content-Type", "text/parameters"),("Content-Length",len(msg))])+msg
         sock.sendall(m3resp)
         logger.debug("<-{}".format(m3resp))
     def m4(self, sock):
@@ -420,7 +415,7 @@ class PiCast:
         data=(sock.recv(1000))
         logger.debug("->{}".format(data))
         
-        s_data = 'RTSP/1.0 200 OK\r\nCSeq: 3\r\n\r\n'
+        s_data = self.rtsp_response_header(seq=3, res="200 OK")
         sock.sendall(s_data)
         logger.debug("<-{}".format(s_data))
     def m5(self, sock):
@@ -428,14 +423,12 @@ class PiCast:
         data=(sock.recv(1000))
         logger.debug("->{}".format(data))
         
-        s_data = 'RTSP/1.0 200 OK\r\nCSeq: 4\r\n\r\n'
+        s_data = self.rtsp_response_header(seq=4, res="200 OK")
         sock.sendall(s_data)
         logger.debug("<-{}".format(s_data))
     def m6(self, sock):
         logger = getLogger("PiCast.m6")
-        m6req ='SETUP rtsp://'+self.sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
-        +'CSeq: 5\r\n'\
-        +'Transport: RTP/AVP/UDP;unicast;client_port=1028\r\n\r\n'
+        m6req = self.rtsp_response_header(seq=5, cmd="SETUP", url="rtsp://{0:s}/wfd1.0/streamid=0".format(self.sourceip),others=[("Transport","RTP/AVP/UDP;unicast;client_port={0:d}".format(1028))])
         logger.debug("<-{}".format(m6req))
         sock.sendall(m6req)
         
@@ -444,7 +437,6 @@ class PiCast:
         
         paralist=data.split(';')
         serverport=[x for x in paralist if 'server_port=' in x]
-        logger.debug("server port {}".format(serverport))
         serverport=serverport[-1]
         serverport=serverport[12:17]
         logger.debug("server port {}".format(serverport))
@@ -455,9 +447,7 @@ class PiCast:
         return sessionid
     def m7(self, sock, sessionid):
         logger = getLogger("PiCast.m7")
-        m7req ='PLAY rtsp://'+self.sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
-        +'CSeq: 6\r\n'\
-        +'Session: '+str(sessionid)+'\r\n\r\n'
+        m7req = self.rtsp_response_header(seq=6, cmd="PLAY", url="rtsp://{0:s}/wfd1.0/streamid=0".format(self.sourceip),others=[("Session",sessionid)])
         sock.sendall(m7req)
         logger.debug("<-{}".format(m7req))
         
@@ -497,12 +487,7 @@ class PiCast:
           else:
             csnum = csnum + 1
             msg = 'wfd_idr_request\r\n'
-            idrreq ='SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n'\
-            +'Content-Length: '+str(len(msg))+'\r\n'\
-            +'Content-Type: text/parameters\r\n'\
-            +'CSeq: '+str(csnum)+'\r\n\r\n'\
-            +msg
-         
+            idrreq = self.rtsp_response_header(seq=csnum, cmd="SET_PARAMETER", url="rtsp://localhost/wfd1.0", others=[("Content-Length",len(msg)),("Content-Type","text/parameters")])+msg
             sock.sendall(idrreq)
             logger.debug("idreq: {}".format(idrreq))
         else:
