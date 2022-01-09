@@ -167,6 +167,19 @@ res_hh = (res_hh<<1) + res_hh_800_480p30
 
 ####################################################
 
+class Player:
+    def __init__(self,sinkip,idrsockport):
+        pass
+        self.player = None
+        self.sinkip = sinkip
+        self.idrsockport = idrsockport
+    def start(self):
+        sinkip = sock.getsockname()[0]
+        self.player = subprocess.Popen(["./h264/h264.bin",str(self.idrsockport),str(sound_output_select),self.sinkip])
+    def stop(self):
+        if self.player != None:
+            self.player.kill()
+            self.player = None
 
 class PiCast:
     def __init__(self, sourceip):
@@ -177,6 +190,7 @@ class PiCast:
         self.runonpi = 'BCM2835' in cpustr or 'BCM2711' in cpustr
         cpuinfo.close()
         self.player_select = 2
+        self.player = None
     def run(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_address = (self.sourceip, 7236)
@@ -192,6 +206,7 @@ class PiCast:
         self.idrsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.idrsock.bind(idrsock_address)
         addr, self.idrsockport = self.idrsock.getsockname()
+        self.player = Player(self.sock.getsockname()[0],self.idrsockport)
         self.negotiate()
 
     def m1(self):
@@ -354,26 +369,7 @@ runonpi = p.runonpi
 idrsock = p.idrsock
 idrsockport = p.idrsockport
 
-def killall(control):
-        os.system('sudo pkill vlc')
-        os.system('sudo pkill cvlc')
-        os.system('sudo pkill gst-launch-1.0')
-        os.system('sudo pkill player.bin')
-        os.system('sudo pkill h264.bin')
-        if display_power_management == 1:
-                os.system('vcgencmd display_power 0')
-        if control:
-                os.system('sudo pkill control.bin')
-                os.system('sudo pkill controlhidc.bin')
-
-def launchplayer(player_select):
-  killall(False)
-  sinkip = sock.getsockname()[0]
-  #print sinkip
-  #print('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
-  os.system('sudo nice --18 ./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
-
-launchplayer(player_select)
+p.player.start()
 
 fcntl.fcntl(sock, fcntl.F_SETFL, os.O_NONBLOCK)
 fcntl.fcntl(idrsock, fcntl.F_SETFL, os.O_NONBLOCK)
@@ -393,12 +389,12 @@ while True:
         if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
           processrunning = os.popen('ps au').read()
           if 'h264.bin' not in processrunning:
-            launchplayer(player_select)            
+            p.player.start()
             sleep(0.01)
           else:
             watchdog = watchdog + 1
             if watchdog == 70/0.01:
-              killall(True)
+              p.player.stop()
               sleep(1)
               break
         else:
@@ -428,11 +424,11 @@ while True:
     print data
     watchdog = 0
     if len(data)==0 or 'wfd_trigger_method: TEARDOWN' in data:
-      killall(True)
+      p.player.stop()
       sleep(1)
       break
     elif 'wfd_video_formats' in data:
-      launchplayer(player_select)
+      p.player.start()
     messagelist=data.split('\r\n\r\n')
     print messagelist
     singlemessagelist=[x for x in messagelist if ('GET_PARAMETER' in x or 'SET_PARAMETER' in x )]
