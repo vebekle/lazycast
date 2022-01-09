@@ -167,145 +167,192 @@ res_hh = (res_hh<<1) + res_hh_800_480p30
 
 ####################################################
 
+
+class PiCast:
+    def __init__(self, sourceip):
+        self.sock = None
+        self.sourceip = sourceip
+        cpuinfo = os.popen('grep Hardware /proc/cpuinfo')
+        cpustr = cpuinfo.read()
+        self.runonpi = 'BCM2835' in cpustr or 'BCM2711' in cpustr
+        cpuinfo.close()
+        self.player_select = 2
+    def run(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_address = (self.sourceip, 7236)
+        self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            self.sock.connect(server_address)
+        except socket.error, e:
+            self.sock.close()
+            return
+        self.idrsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        idrsock_address = ('127.0.0.1', 0)
+        self.idrsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.idrsock.bind(idrsock_address)
+        addr, self.idrsockport = self.idrsock.getsockname()
+        self.negotiate()
+
+    def m1(self):
+        data = (self.sock.recv(1000))
+        print "---M1--->\n" + data
+        s_data = 'RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: org.wfa.wfd1.0, SET_PARAMETER, GET_PARAMETER\r\n\r\n'
+        print "<--------\n" + s_data
+        self.sock.sendall(s_data)
+    def m2(self):
+        # M2
+        s_data = 'OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nRequire: org.wfa.wfd1.0\r\n\r\n'
+        print "<---M2---\n" + s_data
+        self.sock.sendall(s_data)
+        
+        data = (self.sock.recv(1000))
+        print "-------->\n" + data
+        m2data = data
+    def m3(self):
+        # M3
+        data=(self.sock.recv(1000))
+        print "---M3--->\n" + data
+        
+        msg = 'wfd_client_rtp_ports: RTP/AVP/UDP;unicast 1028 0 mode=play\r\n'
+        if self.player_select == 2:
+          msg = msg + 'wfd_audio_codecs: LPCM 00000002 00\r\n'
+        else:
+          msg = msg + 'wfd_audio_codecs: AAC 00000001 00\r\n'
+        
+        msg = msg + str('wfd_video_formats: 00 00 02 10 %08X %08X %08X 00 0000 0000 00 none none\r\n' % (res_cea,res_vesa,res_hh))
+                
+        msg = msg +'wfd_3d_video_formats: none\r\n'\
+          +'wfd_coupled_sink: none\r\n'\
+          +'wfd_connector_type: 05\r\n'\
+          +'wfd_uibc_capability: input_category_list=GENERIC, HIDC;generic_cap_list=Keyboard, Mouse;hidc_cap_list=Keyboard/USB, Mouse/USB;port=none\r\n'\
+          +'wfd_standby_resume_capability: none\r\n'\
+          +'wfd_content_protection: none\r\n'
+        
+        
+        if self.runonpi and not os.path.exists('edid.txt'):
+            os.system('tvservice -d edid.txt')
+        
+        edidlen = 0
+        if os.path.exists('edid.txt'):
+          edidfile = open('edid.txt','r')
+          lines = edidfile.readlines()
+          edidfile.close()
+          edidstr =''
+          for line in lines:
+            edidstr = edidstr + line
+          edidlen = len(edidstr)
+        
+        if 'wfd_display_edid' in data and edidlen != 0:
+          msg = msg + 'wfd_display_edid: ' + '{:04X}'.format(edidlen/256 + 1) + ' ' + str(edidstr.encode('hex'))+'\r\n'
+        
+        # if 'microsoft_latency_management_capability' in data:
+        #   msg = msg + 'microsoft-latency-management-capability: supported\r\n'
+        # if 'microsoft_format_change_capability' in data:
+        #   msg = msg + 'microsoft_format_change_capability: supported\r\n'
+        
+        if 'intel_friendly_name' in data:
+          msg = msg + 'intel_friendly_name: raspberrypi\r\n'
+        if 'intel_sink_manufacturer_name' in data:
+          msg = msg + 'intel_sink_manufacturer_name: lazycast\r\n'
+        if 'intel_sink_model_name' in data:
+          msg = msg + 'intel_sink_model_name: lazycast\r\n'
+        if 'intel_sink_version' in data:
+          msg = msg + 'intel_sink_version: 20.4.26\r\n'
+        if 'intel_sink_device_URL' in data:
+          msg = msg + 'intel_sink_device_URL: https://github.com/homeworkc/lazycast\r\n'
+        
+        m3resp ='RTSP/1.0 200 OK\r\nCSeq: 2\r\n'+'Content-Type: text/parameters\r\nContent-Length: '+str(len(msg))+'\r\n\r\n'+msg
+        print "<--------\n" + m3resp
+        self.sock.sendall(m3resp)
+    def m4(self):
+        # M4
+        data=(self.sock.recv(1000))
+        print "---M4--->\n" + data
+        
+        s_data = 'RTSP/1.0 200 OK\r\nCSeq: 3\r\n\r\n'
+        print "<--------\n" + s_data
+        self.sock.sendall(s_data)
+        self.uibcstart(data)
+    def uibcstart(self, data):
+      #print data
+      messagelist=data.split('\r\n\r\n')
+      for entry in messagelist:
+        if 'wfd_uibc_capability:' in entry:
+          entrylist = entry.split(';')
+          uibcport = entrylist[-1]
+          uibcport = uibcport.split('\r')
+          uibcport = uibcport[0]
+          uibcport = uibcport.split('=')
+          uibcport = uibcport[1]
+          print 'uibcport:'+uibcport+"\n"
+          if 'none' not in uibcport and enable_mouse_keyboard == 1:
+            os.system('sudo pkill control.bin')
+            os.system('sudo pkill controlhidc.bin')
+            if('hidc_cap_list=none' not in entry):
+              os.system('./control/controlhidc.bin '+ uibcport + ' ' + sourceip + ' &')
+            elif('generic_cap_list=none' not in entry):
+              os.system('./control/control.bin '+ uibcport + ' &')
+    def m5(self):
+        # M5
+        data=(self.sock.recv(1000))
+        print "---M5--->\n" + data
+        
+        s_data = 'RTSP/1.0 200 OK\r\nCSeq: 4\r\n\r\n'
+        print "<--------\n" + s_data
+        self.sock.sendall(s_data)
+    def m6(self):
+        # M6
+        m6req ='SETUP rtsp://'+self.sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
+        +'CSeq: 5\r\n'\
+        +'Transport: RTP/AVP/UDP;unicast;client_port=1028\r\n\r\n'
+        print "<---M6---\n" + m6req
+        self.sock.sendall(m6req)
+        
+        data=(self.sock.recv(1000))
+        print "-------->\n" + data
+        
+        paralist=data.split(';')
+        print paralist
+        serverport=[x for x in paralist if 'server_port=' in x]
+        print serverport
+        serverport=serverport[-1]
+        serverport=serverport[12:17]
+        print serverport
+        
+        paralist=data.split( )
+        position=paralist.index('Session:')+1
+        self.sessionid=paralist[position]
+    def m7(self):
+        # M7
+        m7req ='PLAY rtsp://'+self.sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
+        +'CSeq: 6\r\n'\
+        +'Session: '+str(self.sessionid)+'\r\n\r\n'
+        print "<---M7---\n" + m7req
+        self.sock.sendall(m7req)
+        
+        data=(self.sock.recv(1000))
+        print "-------->\n" + data
+    def negotiate(self):
+        self.m1()
+        self.m2()
+        self.m3()
+        self.m4()
+        self.m5()
+        self.m6()
+        self.m7()
+        print "---- Negotiation successful ----"
+
 parser = argparse.ArgumentParser()
 parser.add_argument('arg1', nargs='?', default='192.168.173.80')
 args = parser.parse_args()
 sourceip = vars(args)['arg1']
-
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_address = (sourceip, 7236)
-sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-connectcounter = 0
-while True: 
-  try:
-    sock.connect(server_address)
-  except socket.error, e:
-    #connectcounter = connectcounter + 1
-    #if connectcounter == 3:
-    sock.close()
-    sys.exit(1)
-  else:
-    break
-
-cpuinfo = os.popen('grep Hardware /proc/cpuinfo')
-cpustr = cpuinfo.read()
-runonpi = 'BCM2835' in cpustr or 'BCM2711' in cpustr
-cpuinfo.close()
-
-idrsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-idrsock_address = ('127.0.0.1', 0)
-idrsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-idrsock.bind(idrsock_address)
-addr, idrsockport = idrsock.getsockname()
-
-data = (sock.recv(1000))
-print "---M1--->\n" + data
-s_data = 'RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: org.wfa.wfd1.0, SET_PARAMETER, GET_PARAMETER\r\n\r\n'
-print "<--------\n" + s_data
-sock.sendall(s_data)
-
-
-# M2
-s_data = 'OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nRequire: org.wfa.wfd1.0\r\n\r\n'
-print "<---M2---\n" + s_data
-sock.sendall(s_data)
-
-data = (sock.recv(1000))
-print "-------->\n" + data
-m2data = data
-
-
-# M3
-data=(sock.recv(1000))
-print "---M3--->\n" + data
-
-msg = 'wfd_client_rtp_ports: RTP/AVP/UDP;unicast 1028 0 mode=play\r\n'
-if player_select == 2:
-  msg = msg + 'wfd_audio_codecs: LPCM 00000002 00\r\n'
-else:
-  msg = msg + 'wfd_audio_codecs: AAC 00000001 00\r\n'
-
-msg = msg + str('wfd_video_formats: 00 00 02 10 %08X %08X %08X 00 0000 0000 00 none none\r\n' % (res_cea,res_vesa,res_hh))
-        
-msg = msg +'wfd_3d_video_formats: none\r\n'\
-  +'wfd_coupled_sink: none\r\n'\
-  +'wfd_connector_type: 05\r\n'\
-  +'wfd_uibc_capability: input_category_list=GENERIC, HIDC;generic_cap_list=Keyboard, Mouse;hidc_cap_list=Keyboard/USB, Mouse/USB;port=none\r\n'\
-  +'wfd_standby_resume_capability: none\r\n'\
-  +'wfd_content_protection: none\r\n'
-
-
-if runonpi and not os.path.exists('edid.txt'):
-    os.system('tvservice -d edid.txt')
-
-edidlen = 0
-if os.path.exists('edid.txt'):
-  edidfile = open('edid.txt','r')
-  lines = edidfile.readlines()
-  edidfile.close()
-  edidstr =''
-  for line in lines:
-    edidstr = edidstr + line
-  edidlen = len(edidstr)
-
-if 'wfd_display_edid' in data and edidlen != 0:
-  msg = msg + 'wfd_display_edid: ' + '{:04X}'.format(edidlen/256 + 1) + ' ' + str(edidstr.encode('hex'))+'\r\n'
-
-# if 'microsoft_latency_management_capability' in data:
-#   msg = msg + 'microsoft-latency-management-capability: supported\r\n'
-# if 'microsoft_format_change_capability' in data:
-#   msg = msg + 'microsoft_format_change_capability: supported\r\n'
-
-if 'intel_friendly_name' in data:
-  msg = msg + 'intel_friendly_name: raspberrypi\r\n'
-if 'intel_sink_manufacturer_name' in data:
-  msg = msg + 'intel_sink_manufacturer_name: lazycast\r\n'
-if 'intel_sink_model_name' in data:
-  msg = msg + 'intel_sink_model_name: lazycast\r\n'
-if 'intel_sink_version' in data:
-  msg = msg + 'intel_sink_version: 20.4.26\r\n'
-if 'intel_sink_device_URL' in data:
-  msg = msg + 'intel_sink_device_URL: https://github.com/homeworkc/lazycast\r\n'
-
-
-
-
-m3resp ='RTSP/1.0 200 OK\r\nCSeq: 2\r\n'+'Content-Type: text/parameters\r\nContent-Length: '+str(len(msg))+'\r\n\r\n'+msg
-print "<--------\n" + m3resp
-sock.sendall(m3resp)
-
-
-# M4
-data=(sock.recv(1000))
-print "---M4--->\n" + data
-
-s_data = 'RTSP/1.0 200 OK\r\nCSeq: 3\r\n\r\n'
-print "<--------\n" + s_data
-sock.sendall(s_data)
-
-def uibcstart(sock, data):
-  #print data
-  messagelist=data.split('\r\n\r\n')
-  for entry in messagelist:
-    if 'wfd_uibc_capability:' in entry:
-      entrylist = entry.split(';')
-      uibcport = entrylist[-1]
-      uibcport = uibcport.split('\r')
-      uibcport = uibcport[0]
-      uibcport = uibcport.split('=')
-      uibcport = uibcport[1]
-      print 'uibcport:'+uibcport+"\n"
-      if 'none' not in uibcport and enable_mouse_keyboard == 1:
-        os.system('sudo pkill control.bin')
-        os.system('sudo pkill controlhidc.bin')
-        if('hidc_cap_list=none' not in entry):
-          os.system('./control/controlhidc.bin '+ uibcport + ' ' + sourceip + ' &')
-        elif('generic_cap_list=none' not in entry):
-          os.system('./control/control.bin '+ uibcport + ' &')
-
-uibcstart(sock,data)
+p = PiCast(sourceip)
+p.run()
+sock = p.sock
+runonpi = p.runonpi
+idrsock = p.idrsock
+idrsockport = p.idrsockport
 
 def killall(control):
         os.system('sudo pkill vlc')
@@ -318,54 +365,6 @@ def killall(control):
         if control:
                 os.system('sudo pkill control.bin')
                 os.system('sudo pkill controlhidc.bin')
-
-# M5
-data=(sock.recv(1000))
-print "---M5--->\n" + data
-
-s_data = 'RTSP/1.0 200 OK\r\nCSeq: 4\r\n\r\n'
-print "<--------\n" + s_data
-sock.sendall(s_data)
-
-
-# M6
-m6req ='SETUP rtsp://'+sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
-+'CSeq: 5\r\n'\
-+'Transport: RTP/AVP/UDP;unicast;client_port=1028\r\n\r\n'
-print "<---M6---\n" + m6req
-sock.sendall(m6req)
-
-data=(sock.recv(1000))
-print "-------->\n" + data
-
-paralist=data.split(';')
-print paralist
-serverport=[x for x in paralist if 'server_port=' in x]
-print serverport
-serverport=serverport[-1]
-serverport=serverport[12:17]
-print serverport
-
-paralist=data.split( )
-position=paralist.index('Session:')+1
-sessionid=paralist[position]
-
-
-# M7
-m7req ='PLAY rtsp://'+sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
-+'CSeq: 6\r\n'\
-+'Session: '+str(sessionid)+'\r\n\r\n'
-print "<---M7---\n" + m7req
-sock.sendall(m7req)
-
-data=(sock.recv(1000))
-print "-------->\n" + data
-
-print "---- Negotiation successful ----"
-
-
-if not runonpi:
-  player_select = 0
 
 def launchplayer(player_select):
   killall(False)
