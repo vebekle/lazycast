@@ -24,6 +24,8 @@ from time import sleep
 import sys
 import subprocess
 import argparse
+from logging import DEBUG, StreamHandler, getLogger
+
 ##################### Settings #####################
 player_select = 2
 # 0: non-RPi systems. (using vlc or gstreamer)
@@ -182,6 +184,11 @@ class Player:
 
 class PiCast:
     def __init__(self, sourceip):
+        self.logger = getLogger("PiCast")
+        self.watchdog = 0
+        self.csnum = 0
+        self.player = None
+
         self.sock = None
         self.sourceip = sourceip
         cpuinfo = os.popen('grep Hardware /proc/cpuinfo')
@@ -189,7 +196,6 @@ class PiCast:
         self.runonpi = 'BCM2835' in cpustr or 'BCM2711' in cpustr
         cpuinfo.close()
         self.player_select = 2
-        self.player = None
     def run(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_address = (self.sourceip, 7236)
@@ -215,10 +221,11 @@ class PiCast:
         self.sock.close()
 
     def m1(self):
+        logger = getLogger("PiCast.m1")
         data = (self.sock.recv(1000))
-        print "---M1--->\n" + data
+        logger.debug("<-{}".format(data))
         s_data = 'RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: org.wfa.wfd1.0, SET_PARAMETER, GET_PARAMETER\r\n\r\n'
-        print "<--------\n" + s_data
+        logger.debug("->{}".format(s_data))
         self.sock.sendall(s_data)
     def m2(self):
         # M2
@@ -436,6 +443,16 @@ class PiCast:
             self.uibcstart(data)
 
 
+
+def setup_logger():
+    logger = getLogger("PiCast")
+    handler = StreamHandler()
+    handler.setLevel(DEBUG)
+    logger.setLevel(DEBUG)
+    logger.addHandler(handler)
+    logger.propagate = True
+
+setup_logger()
 parser = argparse.ArgumentParser()
 parser.add_argument('arg1', nargs='?', default='192.168.173.80')
 args = parser.parse_args()
