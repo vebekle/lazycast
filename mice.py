@@ -120,7 +120,6 @@ class P2P_Group_Add (threading.Thread):
 		# Initializes variables and threads
 		self.interface_name = interface_name
 		self.wpas_dbus_interface = wpas_dbus_interface
-		
 
 		# Initializes thread and daemon allows for ctrl-c kill
 		threading.Thread.__init__(self)
