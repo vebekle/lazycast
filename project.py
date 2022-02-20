@@ -424,8 +424,19 @@ class PiCast:
         logger.debug("->{}".format(data))
         
         paralist=data.split(';')
+        #print(paralist)
         serverport=[x for x in paralist if 'server_port=' in x]
+        #print(serverport)
+        if len(serverport)==0:
+            data= sock.recv(1000)
+            logger.debug("->{}".format(data))
+            paralist=data.split(';')
+            #print(paralist)
+            serverport=[x for x in paralist if 'server_port=' in x]
+            #print(serverport)
+
         serverport=serverport[-1]
+        #print(serverport)
         serverport=serverport[12:17]
         logger.debug("server port {}".format(serverport))
         
